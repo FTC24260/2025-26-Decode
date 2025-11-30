@@ -12,6 +12,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 public class BasicTeleop extends OpMode {
 
     // Declare motors
+    //Initialize motors
     private DcMotor leftFront;
     private DcMotor rightFront;
     private DcMotor leftRear;
