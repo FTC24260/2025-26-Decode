@@ -10,7 +10,7 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
-@TeleOp(name = "Pipeline Intake + Color Spindex")
+@TeleOp(name = "TeleopRestartFlicker")
 public class TeleopRestart extends OpMode {
 
     // --- Vision ---
@@ -20,16 +20,21 @@ public class TeleopRestart extends OpMode {
     // --- Hardware ---
     private DcMotor intake;
     private ColorSensor colorSensor;
-    private Servo leftIndex, rightIndex;
+    private Servo leftIndex, rightIndex, flicker;
 
-    // --- Spindex ---
-    private final double[] positions = {0.34, 0.603, 1.0};
+    // --- Spindex intake positions ---
+    private final double[] intakePositions = {0.34, 0.603, 1.0};
+
+    // --- Spindex shoot positions ---
+    private final double[] shootPositions = {0.71, 0.46, 0.20};
+
+    // --- Slot storage ---
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
     // --- Sensor Lockout ---
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 400;
+    private static final long SENSOR_IGNORE_MS = 2000;
 
     // --- Startup delay ---
     private long startupIgnoreUntil = 0;
@@ -37,6 +42,19 @@ public class TeleopRestart extends OpMode {
 
     // --- Ball presence tracking ---
     private boolean ballPresentLastLoop = false;
+
+    // --- Intake burst after shooting ---
+    private long intakeBurstUntil = 0;
+    private static final long INTAKE_BURST_MS = 300;
+
+    // --- Flicker Positions ---
+    private double flickerUp = 0.5;
+    private double flickerDown = 0.7;
+
+    // --- Flicker state machine ---
+    private enum FlickerState { IDLE, WAIT_UP, UP, DOWN }
+    private FlickerState flickerState = FlickerState.IDLE;
+    private long flickerTimer = 0;
 
     @Override
     public void init() {
@@ -53,10 +71,13 @@ public class TeleopRestart extends OpMode {
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
 
-        intake.setPower(0);
-        setSpindexPosition(0);
+        flicker = hardwareMap.get(Servo.class, "flicker");
 
-        // --- Ignore color sensor for first 500ms ---
+        intake.setPower(0);
+        setSpindexIntakePosition(0);
+
+        flicker.setPosition(flickerDown);
+
         startupIgnoreUntil = System.currentTimeMillis() + STARTUP_IGNORE_MS;
     }
 
@@ -64,14 +85,16 @@ public class TeleopRestart extends OpMode {
     public void loop() {
         long now = System.currentTimeMillis();
 
-        // --- Intake control ONLY by camera ---
-        if (pipeline.ballDetected) {
-            intake.setPower(-1);
+        // --- Intake control ---
+        if (now < intakeBurstUntil) {
+            intake.setPower(-1); // intake burst after shooting
+        } else if (pipeline.ballDetected) {
+            intake.setPower(-1); // normal intake if ball detected
         } else {
             intake.setPower(0);
         }
 
-        // --- Ignore color sensor during startup delay ---
+        // --- Startup ignore ---
         if (now < startupIgnoreUntil) {
             telemetry.addLine("Color sensor warming up...");
             telemetry.update();
@@ -82,7 +105,6 @@ public class TeleopRestart extends OpMode {
         String detectedColor = detectColor();
         boolean colorSeesBall = !detectedColor.equals("unknown");
 
-        // Rising edge: ball JUST arrived at sensor
         boolean ballJustArrived =
                 colorSeesBall &&
                         !ballPresentLastLoop &&
@@ -90,27 +112,53 @@ public class TeleopRestart extends OpMode {
                         currentIndex < 3;
 
         if (ballJustArrived) {
-            // Store color ONCE
             slots[currentIndex] = detectedColor;
-
-            // Move spindex
-            setSpindexPosition(currentIndex + 1);
+            setSpindexIntakePosition(currentIndex + 1);
             currentIndex++;
-
-            // Lock out sensor
             ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
         ballPresentLastLoop = colorSeesBall;
 
+        // --- Shooting logic ---
+        if ((gamepad1.a && shootColor("green")) || (gamepad1.b && shootColor("purple"))) {
+            // Start flicker sequence
+            if (flickerState == FlickerState.IDLE) {
+                flickerState = FlickerState.WAIT_UP;
+                flickerTimer = now + 700; // wait 400 ms before moving up
+                intakeBurstUntil = now + INTAKE_BURST_MS; // intake burst
+            }
+        }
+
+        // --- Flicker state machine ---
+        switch (flickerState) {
+            case WAIT_UP:
+                if (now >= flickerTimer) {
+                    flicker.setPosition(flickerUp);
+                    flickerState = FlickerState.UP;
+                    flickerTimer = now + 300; // hold up for 100ms
+                }
+                break;
+
+            case UP:
+                if (now >= flickerTimer) {
+                    flicker.setPosition(flickerDown);
+                    flickerState = FlickerState.IDLE;
+                }
+                break;
+
+            default:
+                break;
+        }
+
         // --- Telemetry ---
-        telemetry.addData("Pipeline Ball Detected", pipeline.ballDetected);
         telemetry.addData("Detected Color", detectedColor);
-        telemetry.addData("Slots",
-                slots[0] + ", " + slots[1] + ", " + slots[2]);
+        telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
         telemetry.addData("Current Index", currentIndex);
-        telemetry.addData("Ignore Sensor (ms)",
-                Math.max(0, ignoreSensorUntil - now));
+        telemetry.addData("Ball Detected by Intake", pipeline.ballDetected);
+        telemetry.addData("Sensor Ignore(ms)", Math.max(0, ignoreSensorUntil - now));
+        telemetry.addData("Intake Burst(ms)", Math.max(0, intakeBurstUntil - now));
+        telemetry.addData("Flicker State", flickerState);
         telemetry.update();
     }
 
@@ -120,17 +168,29 @@ public class TeleopRestart extends OpMode {
         visionPortal.close();
     }
 
+    // =======================
+    // HELPER METHODS
+    // =======================
+
+    private boolean shootColor(String color) {
+        for (int i = 0; i < 3; i++) {
+            if (slots[i].equals(color)) {
+                setSpindexShootPosition(i);
+                return true; // shot happened
+            }
+        }
+        return false; // no matching ball
+    }
+
     private String detectColor() {
         int r = colorSensor.red();
         int g = colorSensor.green();
         int b = colorSensor.blue();
 
-        // Green
         if (g > 1.2 * r && g > 1.2 * b && g > 20) {
             return "green";
         }
 
-        // Purple
         int maxRB = Math.max(r, b);
         int minRB = Math.min(r, b);
         if (maxRB > 40 && minRB >= 0.5 * maxRB && g < 0.7 * maxRB) {
@@ -140,11 +200,17 @@ public class TeleopRestart extends OpMode {
         return "unknown";
     }
 
-    private void setSpindexPosition(int index) {
-        if (index >= positions.length) {
-            index = positions.length - 1;
+    private void setSpindexIntakePosition(int index) {
+        if (index >= intakePositions.length) {
+            index = intakePositions.length - 1;
         }
-        double pos = positions[index];
+        double pos = intakePositions[index];
+        leftIndex.setPosition(pos);
+        rightIndex.setPosition(1.0 - pos);
+    }
+
+    private void setSpindexShootPosition(int index) {
+        double pos = shootPositions[index];
         leftIndex.setPosition(pos);
         rightIndex.setPosition(1.0 - pos);
     }
