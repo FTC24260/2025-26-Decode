@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-@TeleOp(name = "Shooter Test")
+//@TeleOp(name = "Shooter Test")
 public class secondBotShooterTest extends OpMode {
     private DcMotorEx shooter;
 

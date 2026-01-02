@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "Shooter Pitch Calculation Test")
+//@TeleOp(name = "Shooter Pitch Calculation Test")
 public class TestShooterPitchCalc extends OpMode {
 
     private Follower follower;

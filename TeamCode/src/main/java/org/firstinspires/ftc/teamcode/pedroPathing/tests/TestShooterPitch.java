@@ -9,7 +9,7 @@ import com.pedropathing.geometry.Pose;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.ShooterSubsystem;
 
-@TeleOp(name = "Shooter Pitch Test")
+//@TeleOp(name = "Shooter Pitch Test")
 public class TestShooterPitch extends OpMode {
 
     private Follower follower;

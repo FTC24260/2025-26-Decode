@@ -8,7 +8,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 
-@TeleOp(name = "Shooter Test")
+//@TeleOp(name = "Shooter Test")
 public class OtherRobtShooterTest extends OpMode {
 
     // Declare motors

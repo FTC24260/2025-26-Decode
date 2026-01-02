@@ -8,7 +8,7 @@ import com.pedropathing.geometry.Pose;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "Shooter Yaw Calculation Test")
+//@TeleOp(name = "Shooter Yaw Calculation Test")
 public class TestShooterYawCalc extends OpMode {
 
     // Pedro Pathing follower for localization
