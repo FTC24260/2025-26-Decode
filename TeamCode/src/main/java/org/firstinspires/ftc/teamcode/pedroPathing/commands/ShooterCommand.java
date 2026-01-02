@@ -1,10 +1,10 @@
-package org.firstinspires.ftc.teamcode.pedroPathing.commands;
+package org.firstinspires.ftc.teamcode.pedroPathing.Commands;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.pedroPathing.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.ShooterSubsystem;
 
 /**
  * ShooterCommand

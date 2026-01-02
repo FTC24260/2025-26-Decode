@@ -1,45 +1,52 @@
-package org.firstinspires.ftc.teamcode.pedroPathing.subsystems;
+package org.firstinspires.ftc.teamcode.pedroPathing.Subsystems;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 
-public class  ShooterSubsystem {
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
 
-    private final DcMotor shooterMotor;   // flywheel
-    private final DcMotor yawMotor;       // rotates shooter left/right
-    private final Servo pitchServo;       // adjusts shooter pitch
+public class ShooterSubsystem {
 
-    private final double kP = 0.01;
-    private final double kI = 0.0;
-    private final double kD = 0.0;
+    private final DcMotor shooterMotor;      // flywheel
+    private final DcMotor yawMotor;          // rotates turret
+    private final Servo pitchServoLeft;      // left hood servo
+    private final Servo pitchServoRight;     // right hood servo (mirrored)
 
-    private double targetYawAngle = 0;  // target yaw in degrees
+    // PID constants for yaw
+    private final double kP = RobotConstants.Shooter.KP;
+    private final double kI = RobotConstants.Shooter.KI;
+    private final double kD = RobotConstants.Shooter.KD;
+
+    private double targetYawAngle = 0;
     private double lastError = 0;
     private double integral = 0;
 
-    private final double pitchStraightUp = 0.0;
-    private final double pitchMaxAngle = 1.0;
-
-    // Max RPM of shooter flywheel (adjust for your motor)
-    private static final double MAX_RPM = 6000;
+    // Hood pitch limits (normalized servo range)
+    private final double pitchMin = 0.0;   // straight up
+    private final double pitchMax = 1.0;   // max down
 
     public ShooterSubsystem(HardwareMap hardwareMap) {
-        shooterMotor = hardwareMap.get(DcMotor.class, "shooterMotor");
-        yawMotor = hardwareMap.get(DcMotor.class, "yawMotor");
-        pitchServo = hardwareMap.get(Servo.class, "pitchServo");
+        shooterMotor = hardwareMap.get(DcMotor.class, RobotConstants.Hardware.SHOOTER_MOTOR);
+        yawMotor = hardwareMap.get(DcMotor.class, RobotConstants.Hardware.TURRET_MOTOR);
 
-        // Configure motors
+        pitchServoLeft  = hardwareMap.get(Servo.class, RobotConstants.Hardware.HOOD_LEFT);
+        pitchServoRight = hardwareMap.get(Servo.class, RobotConstants.Hardware.HOOD_RIGHT);
+
+        // Flywheel motor setup
         shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
+        // Yaw motor setup
         yawMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         yawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        pitchServo.setPosition(0.5); // neutral position
+        // Start both pitch servos at middle
+        setPitchPosition(0.5);
     }
 
     /* ---------- Shooter wheel control ---------- */
+
     public void setShooterPower(double power) {
         shooterMotor.setPower(power);
     }
@@ -52,32 +59,42 @@ public class  ShooterSubsystem {
         return shooterMotor.getPower();
     }
 
-    /* ---------- Pitch control ---------- */
+    /* ---------- Pitch control (mirrored left & right) ---------- */
+
     public void setPitchPosition(double position) {
-        pitchServo.setPosition(Math.min(Math.max(position, pitchStraightUp), pitchMaxAngle));
+        // Clamp input
+        position = Math.min(Math.max(position, pitchMin), pitchMax);
+
+        // Left servo direct
+        pitchServoLeft.setPosition(position);
+
+        // Right servo mirrored
+        pitchServoRight.setPosition(Math.abs(1.0 - position));
     }
 
     public double getPitchPosition() {
-        return pitchServo.getPosition();
+        return pitchServoLeft.getPosition();
     }
 
     /* ---------- Yaw control (PID) ---------- */
+
     public void setYawAngle(double angle) {
         targetYawAngle = angle;
     }
 
     public void updateYaw() {
-        double currentYaw = yawMotor.getCurrentPosition(); // encoder ticks
-        // Convert ticks to degrees (assuming 1 tick = 1 deg for example, adjust!)
-        double currentAngle = currentYaw;
+        double currentYawTicks = yawMotor.getCurrentPosition();
+
+        // TODO: replace 1:1 with your real ticks→degrees conversion
+        double currentAngle = currentYawTicks;
 
         double error = targetYawAngle - currentAngle;
         integral += error;
         double derivative = error - lastError;
         lastError = error;
 
-        double output = kP * error + kI * integral + kD * derivative;
-        output = Math.max(Math.min(output, 1.0), -1.0); // clamp -1 to 1
+        double output = (kP * error) + (kI * integral) + (kD * derivative);
+        output = Math.max(Math.min(output, 1.0), -1.0);  // clamp
 
         yawMotor.setPower(output);
     }

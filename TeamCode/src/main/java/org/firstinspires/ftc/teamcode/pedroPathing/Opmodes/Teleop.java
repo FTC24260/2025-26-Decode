@@ -5,8 +5,9 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.IntakeSubsystem;
 
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @TeleOp(name = "TeleOp")
 public class Teleop extends OpMode {
@@ -35,8 +36,8 @@ public class Teleop extends OpMode {
         follower.update(); // Always update follower localization
 
         // === DRIVER CONTROL ===
-        double driveY = -gamepad1.left_stick_y;  // Forward/Backward
-        double driveX = -gamepad1.left_stick_x;  // Strafe
+        double driveY = gamepad1.left_stick_y;  // Forward/Backward
+        double driveX = gamepad1.left_stick_x;  // Strafe
         double turn = -gamepad1.right_stick_x;   // Rotation
 
         if (!slowMode) {
@@ -44,18 +45,18 @@ public class Teleop extends OpMode {
                     driveY,
                     driveX,
                     turn,
-                    true
+                    false
             );  // Robot-Centric
         } else {
             follower.setTeleOpDrive(
                     driveY * slowModeMultiplier,
                     driveX * slowModeMultiplier,
                     turn * slowModeMultiplier,
-                    true
+                    false
             );
         }
 
-        // === SLOW MODE TOGGLE ===
+        // SLOW MODE TOGGLE
         if (gamepad1.right_bumper) {
             slowMode = true;
         } else {

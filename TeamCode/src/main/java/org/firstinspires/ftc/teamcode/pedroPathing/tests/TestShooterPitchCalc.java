@@ -5,6 +5,8 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
+
 @TeleOp(name = "Shooter Pitch Calculation Test")
 public class TestShooterPitchCalc extends OpMode {
 
@@ -23,7 +25,7 @@ public class TestShooterPitchCalc extends OpMode {
         telemetry.update();
 
         // Initialize Pedro Pathing follower
-        follower = org.firstinspires.ftc.teamcode.pedroPathing.Constants.createFollower(hardwareMap);
+        follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(0, 0, 0));
         follower.update();
 

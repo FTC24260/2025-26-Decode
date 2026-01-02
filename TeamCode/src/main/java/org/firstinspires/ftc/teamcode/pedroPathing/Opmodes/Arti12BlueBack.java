@@ -9,9 +9,9 @@ import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "Blue Back", group = "Autonomous")
+@Autonomous(name = "12 Blue Back", group = "Autonomous")
 public class Arti12BlueBack extends OpMode {
     private Follower follower;
     private Timer pathTimer;

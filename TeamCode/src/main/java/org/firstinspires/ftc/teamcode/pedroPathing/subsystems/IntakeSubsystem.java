@@ -1,46 +1,46 @@
-package org.firstinspires.ftc.teamcode.pedroPathing.subsystems;
+package org.firstinspires.ftc.teamcode.pedroPathing.Subsystems;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
+
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
 
 public class IntakeSubsystem {
 
     private final DcMotor intakeMotor;
-    private final Telemetry telemetry;
+    private double targetPower = 0.0;
+    private double currentPower = 0.0;
+    private double intakePower = -1.0;
+    private double outtakePower = 1.0;
+    private double stopPower = 0.0;
 
-    // Define constants for power levels
-    private static final double INTAKE_POWER = 1.0;   // full power for intake
-    private static final double OUTTAKE_POWER = -1.0; // reverse direction
+    private static final double RAMP_RATE = 0.05; // smooth power ramping
 
-    public IntakeSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
-        this.telemetry = telemetry;
-
-        // Initialize motor
-        intakeMotor = hardwareMap.get(DcMotor.class, "intakeMotor"); // must match config name
+    public IntakeSubsystem(HardwareMap hardwareMap) {
+        intakeMotor = hardwareMap.get(DcMotor.class, RobotConstants.Hardware.INTAKE_MOTOR);
+        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-    }
-    public void intake() {
-        intakeMotor.setPower(INTAKE_POWER);
-        telemetry.addData("Intake", "Running (in)");
+        intakeMotor.setPower(0.0);
     }
 
-    /** Pushes the game element outward (reverse) */
-    public void outtake() {
-        intakeMotor.setPower(OUTTAKE_POWER);
-        telemetry.addData("Intake", "Running (out)");
-    }
+    public void intake() { targetPower = intakePower; }      // run forward
+    public void outtake() { targetPower = outtakePower; }    // run backward
+    public void stop() { targetPower = stopPower; }        // stop
 
-    /** Stops the motor */
-    public void stop() {
-        intakeMotor.setPower(0);
-        telemetry.addData("Intake", "Stopped");
-    }
 
-    /** Call periodically for telemetry updates */
+
     public void update() {
-        telemetry.addData("Intake Power", intakeMotor.getPower());
-        telemetry.update();
+        // Ramp smoothly towards target power
+        currentPower += clamp(targetPower - currentPower, -RAMP_RATE, RAMP_RATE);
+        intakeMotor.setPower(currentPower);
     }
+
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+
+    public double getTargetPower() { return targetPower; }
+    public double getCurrentPower() { return currentPower; }
 }

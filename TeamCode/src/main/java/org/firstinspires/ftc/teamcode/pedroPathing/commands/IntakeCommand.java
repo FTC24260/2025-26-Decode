@@ -1,7 +1,7 @@
-package org.firstinspires.ftc.teamcode.pedroPathing.commands;
+package org.firstinspires.ftc.teamcode.pedroPathing.Commands;
 
 import com.qualcomm.robotcore.util.ElapsedTime;
-import org.firstinspires.ftc.teamcode.pedroPathing.subsystems.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.IntakeSubsystem;
 
 public class IntakeCommand {
 

@@ -6,6 +6,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
+
 @TeleOp(name = "Shooter Yaw Calculation Test")
 public class TestShooterYawCalc extends OpMode {
 
@@ -22,7 +24,7 @@ public class TestShooterYawCalc extends OpMode {
         telemetry.update();
 
         // Initialize Pedro Pathing follower
-        follower = org.firstinspires.ftc.teamcode.pedroPathing.Constants.createFollower(hardwareMap);
+        follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(0, 0, 0));
         follower.update();
 
