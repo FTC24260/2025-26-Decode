@@ -12,11 +12,12 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
-import org.firstinspires.ftc.teamcode.pedroPathing.Vision.GreenArtifactPipeline;
+import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
 import java.util.function.Supplier;
 
@@ -24,7 +25,7 @@ import java.util.function.Supplier;
 @TeleOp
 public class Teleop extends OpMode {
 
-    // Follower stuff
+    // --- Follower stuff ---
     private Follower follower;
     public static Pose startingPose;
     private boolean automatedDrive;
@@ -33,10 +34,13 @@ public class Teleop extends OpMode {
     private boolean slowMode = false;
     private double slowModeMultiplier = 0.5;
 
-    // Vision & intake stuff
+    // --- Vision & intake stuff ---
     private VisionPortal visionPortal;
-    private GreenArtifactPipeline pipeline;
+    private ArtifactPipeline pipeline;
     private DcMotor intake;
+
+    // --- Color sensor ---
+    private ColorSensor colorSensor;
 
     @Override
     public void init() {
@@ -53,7 +57,7 @@ public class Teleop extends OpMode {
                 .build();
 
         // --- Vision & intake initialization ---
-        pipeline = new GreenArtifactPipeline();
+        pipeline = new ArtifactPipeline();
         intake = hardwareMap.get(DcMotor.class, "intake");
         intake.setPower(0);
 
@@ -62,7 +66,10 @@ public class Teleop extends OpMode {
                 .addProcessor(pipeline)
                 .build();
 
-        telemetry.addLine("TeleOp & Vision Initialized");
+        // --- Color sensor initialization ---
+        colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
+
+        telemetry.addLine("TeleOp with Color Sensor Initialized");
         telemetry.update();
     }
 
@@ -77,49 +84,45 @@ public class Teleop extends OpMode {
         follower.update();
         telemetryM.update();
 
-        if (!automatedDrive) {
-            double lx = -gamepad1.left_stick_y;
-            double ly = -gamepad1.left_stick_x;
-            double rx = -gamepad1.right_stick_x;
+        // Teleop driving
+        double lx = -gamepad1.left_stick_y;
+        double ly = -gamepad1.left_stick_x;
+        double rx = -gamepad1.right_stick_x;
 
-            if (slowMode) {
-                lx *= slowModeMultiplier;
-                ly *= slowModeMultiplier;
-                rx *= slowModeMultiplier;
-            }
-
-            follower.setTeleOpDrive(lx, ly, rx, false); // Robot Centric
+        if (slowMode) {
+            lx *= slowModeMultiplier;
+            ly *= slowModeMultiplier;
+            rx *= slowModeMultiplier;
         }
 
+        follower.setTeleOpDrive(lx, ly, rx, false); // Robot Centric
+
         // Automated path following
-        if (gamepad1.aWasPressed()) {
+        if (gamepad1.a) {
             follower.followPath(pathChain.get());
             automatedDrive = true;
         }
 
-        if (automatedDrive && (gamepad1.bWasPressed() || !follower.isBusy())) {
+        if (automatedDrive && (gamepad1.b || !follower.isBusy())) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
 
         // Slow mode toggles
-        if (gamepad1.rightBumperWasPressed()) slowMode = !slowMode;
-        if (gamepad1.xWasPressed()) slowModeMultiplier += 0.25;
-        if (gamepad2.yWasPressed()) slowModeMultiplier -= 0.25;
+        if (gamepad1.right_bumper) slowMode = !slowMode;
+        if (gamepad1.x) slowModeMultiplier += 0.25;
+        if (gamepad2.y) slowModeMultiplier -= 0.25;
 
         // --- Vision-based intake logic ---
-        if (pipeline.greenDetected) {
+        if (pipeline.ballDetected) {
             intake.setPower(-1); // run intake if green detected
         } else {
             intake.setPower(0);
         }
 
-        // --- Telemetry ---
-        telemetryM.debug("position", follower.getPose());
-        telemetryM.debug("velocity", follower.getVelocity());
-        telemetryM.debug("automatedDrive", automatedDrive);
-        telemetry.addData("Green Detected", pipeline.greenDetected);
-        telemetry.addData("Largest Area", pipeline.largestArea);
+        // --- Color sensor detection (green/purple only) ---
+        String detectedColor = detectColor();
+        telemetry.addData("Detected Color", detectedColor);
         telemetry.update();
     }
 
@@ -127,5 +130,19 @@ public class Teleop extends OpMode {
     public void stop() {
         visionPortal.close();
         intake.setPower(0);
+    }
+
+    private String detectColor() {
+        int r = colorSensor.red();
+        int g = colorSensor.green();
+        int b = colorSensor.blue();
+
+        // Green: significantly higher than R and B
+        if (g > 1.2 * r && g > 1.2 * b) return "green";
+
+        // Purple: red + blue high, green low
+        if (r > 50 && b > 50 && g < 40) return "purple";
+
+        return "unknown";
     }
 }
