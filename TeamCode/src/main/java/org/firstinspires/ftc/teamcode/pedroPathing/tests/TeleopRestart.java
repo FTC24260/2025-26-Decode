@@ -31,6 +31,10 @@ public class TeleopRestart extends OpMode {
     private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 400;
 
+    // --- Startup delay ---
+    private long startupIgnoreUntil = 0;
+    private static final long STARTUP_IGNORE_MS = 500;
+
     // --- Ball presence tracking ---
     private boolean ballPresentLastLoop = false;
 
@@ -51,6 +55,9 @@ public class TeleopRestart extends OpMode {
 
         intake.setPower(0);
         setSpindexPosition(0);
+
+        // --- Ignore color sensor for first 500ms ---
+        startupIgnoreUntil = System.currentTimeMillis() + STARTUP_IGNORE_MS;
     }
 
     @Override
@@ -62,6 +69,13 @@ public class TeleopRestart extends OpMode {
             intake.setPower(-1);
         } else {
             intake.setPower(0);
+        }
+
+        // --- Ignore color sensor during startup delay ---
+        if (now < startupIgnoreUntil) {
+            telemetry.addLine("Color sensor warming up...");
+            telemetry.update();
+            return;
         }
 
         // --- Color sensor detection ---
