@@ -51,7 +51,7 @@ public class TeleopRestart extends OpMode {
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 300;
+    private static final long SENSOR_IGNORE_MS = 1000;
 
     // --- Flicker ---
     private enum FlickerState {IDLE, WAIT_UP, UP}
@@ -60,28 +60,21 @@ public class TeleopRestart extends OpMode {
     private double flickerUp = 0.5;
     private double flickerDown = 0.7;
 
-    // --- X eject ---
-    private enum XState {IDLE, EJECTING}
-    private XState xState = XState.IDLE;
-    private int xCurrentSlot = 0;
-    private long xTimer = 0;
-    private static final long X_EJECT_MS = 300;
-
     // --- Intake burst ---
     private long intakeBurstUntil = 0;
-    private static final long INTAKE_BURST_MS = 300;
+    private static final long INTAKE_BURST_MS = 500;
+
+    // --- A toggle ---
+    private boolean lastA = false;
 
     @Override
     public void init() {
-        // --- Follower ---
         follower = Constants.createFollower(hardwareMap);
         if (startingPose == null) startingPose = new Pose();
         follower.setStartingPose(startingPose);
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
-
-        // --- Drive motors ---
         leftFront = hardwareMap.get(DcMotor.class, "leftFront");
         leftRear = hardwareMap.get(DcMotor.class, "leftRear");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
@@ -92,16 +85,10 @@ public class TeleopRestart extends OpMode {
         rightFront.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
         rightRear.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
 
-        // --- Intake & shooter ---
         intake = hardwareMap.get(DcMotor.class, "intake");
-        intake.setPower(0);
-
         shooterL = hardwareMap.get(DcMotor.class, "ShooterL");
         shooterR = hardwareMap.get(DcMotor.class, "ShooterR");
-        shooterL.setPower(0);
-        shooterR.setPower(0);
 
-        // --- Vision & sensors ---
         pipeline = new ArtifactPipeline();
         visionPortal = new VisionPortal.Builder()
                 .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
@@ -110,10 +97,10 @@ public class TeleopRestart extends OpMode {
 
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
 
-        // --- Spindex ---
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
         flicker = hardwareMap.get(Servo.class, "flicker");
+
         setSpindexIntakePosition(0);
         flicker.setPosition(flickerDown);
     }
@@ -127,32 +114,20 @@ public class TeleopRestart extends OpMode {
     public void loop() {
         long now = System.currentTimeMillis();
 
-        // --- Robot-centric driving ---
         follower.update();
         telemetryM.update();
 
-        double lx = -gamepad1.left_stick_y;
-        double ly = -gamepad1.left_stick_x;
-        double rx = -gamepad1.right_stick_x;
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                false
+        );
 
-        if (slowMode) {
-            lx *= slowModeMultiplier;
-            ly *= slowModeMultiplier;
-            rx *= slowModeMultiplier;
-        }
+        // --- Intake ---
+        intake.setPower(pipeline.ballDetected ? -1 : 0);
 
-        follower.setTeleOpDrive(lx, ly, rx, false); // robot-centric
-
-        // --- Slow mode toggles ---
-        if (gamepad1.right_bumper) slowMode = !slowMode;
-        if (gamepad1.x) slowModeMultiplier += 0.25;
-        if (gamepad2.y) slowModeMultiplier -= 0.25;
-
-        // --- Vision-based intake ---
-        if (pipeline.ballDetected) intake.setPower(-1);
-        else intake.setPower(0);
-
-        // --- Color sensor intake ---
+        // --- Color intake ---
         String detectedColor = detectColor();
         if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && currentIndex < 3) {
             slots[currentIndex] = detectedColor;
@@ -161,11 +136,13 @@ public class TeleopRestart extends OpMode {
             ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
-        // --- Shooting logic ---
-        if (gamepad1.a && shootNearestColor("green")) startShooting(now);
-        if (gamepad1.b && shootNearestColor("purple")) startShooting(now);
+        // --- A TOGGLE SHOOT (ONLY CHANGE) ---
+        if (gamepad1.a && !lastA && shootNearestAny()) {
+            startShooting(now);
+        }
+        lastA = gamepad1.a;
 
-        // --- Flicker state machine ---
+        // --- Flicker FSM ---
         if (flickerState == FlickerState.WAIT_UP && now >= flickerTimer) {
             flicker.setPosition(flickerUp);
             flickerState = FlickerState.UP;
@@ -177,31 +154,7 @@ public class TeleopRestart extends OpMode {
             shooterR.setPower(0);
         }
 
-        // --- X eject logic ---
-        if (gamepad1.x && xState == XState.IDLE) {
-            xState = XState.EJECTING;
-            xCurrentSlot = 0;
-            setSpindexIntakePosition(xCurrentSlot);
-            intake.setPower(1);
-            xTimer = now + X_EJECT_MS;
-        }
-        if (xState == XState.EJECTING && now >= xTimer) {
-            xCurrentSlot++;
-            if (xCurrentSlot < intakePositions.length) {
-                setSpindexIntakePosition(xCurrentSlot);
-                intake.setPower(1);
-                xTimer = now + X_EJECT_MS;
-            } else {
-                intake.setPower(0);
-                xState = XState.IDLE;
-            }
-        }
-
-        // --- Telemetry ---
-        telemetry.addData("Detected Color", detectedColor);
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
-        telemetry.addData("Current Index", currentIndex);
-        telemetry.addData("Intake Burst(ms)", Math.max(0, intakeBurstUntil - now));
         telemetry.update();
     }
 
@@ -214,7 +167,7 @@ public class TeleopRestart extends OpMode {
     }
 
     // =======================
-    // HELPER METHODS
+    // HELPERS
     // =======================
 
     private String detectColor() {
@@ -241,21 +194,25 @@ public class TeleopRestart extends OpMode {
         rightIndex.setPosition(1.0 - shootPositions[index]);
     }
 
-    private boolean shootNearestColor(String color) {
+    // 🔹 NEW: nearest occupied slot (ANY color)
+    private boolean shootNearestAny() {
         double currentPos = leftIndex.getPosition();
         double nearestDist = Double.MAX_VALUE;
         int nearestIndex = -1;
+
         for (int i = 0; i < slots.length; i++) {
-            if (slots[i].equals(color)) {
-                double dist = Math.abs(leftIndex.getPosition() - shootPositions[i]);
+            if (!slots[i].equals("unknown")) {
+                double dist = Math.abs(currentPos - shootPositions[i]);
                 if (dist < nearestDist) {
                     nearestDist = dist;
                     nearestIndex = i;
                 }
             }
         }
+
         if (nearestIndex != -1) {
             setSpindexShootPosition(nearestIndex);
+            slots[nearestIndex] = "unknown"; // optional but correct
             return true;
         }
         return false;
@@ -265,7 +222,7 @@ public class TeleopRestart extends OpMode {
         shooterL.setPower(1);
         shooterR.setPower(-1);
         flickerState = FlickerState.WAIT_UP;
-        flickerTimer = now + 2000; // wait 2000ms before flicker up
+        flickerTimer = now + 2000;
         intakeBurstUntil = now + INTAKE_BURST_MS;
     }
 }
