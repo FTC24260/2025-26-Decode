@@ -16,7 +16,7 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
-@TeleOp(name = "FullTeleOp Rapid Fire 2.0")
+@TeleOp(name = "FullTeleOp")
 public class Teleop extends OpMode {
 
     // --- Follower / Drive ---
@@ -55,6 +55,8 @@ public class Teleop extends OpMode {
     // --- Sensor ignore timer ---
     private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 400; // 400 ms after spindex move
+    private long initialIgnoreUntil = 0;
+    private static final long INITIAL_IGNORE_MS = 500; // ignore first 500 ms after start
 
     // --- Flicker ---
     private final double flickerUp = 0.5;
@@ -124,6 +126,7 @@ public class Teleop extends OpMode {
     @Override
     public void start() {
         follower.startTeleopDrive();
+        initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS; // start 500 ms ignore
     }
 
     @Override
@@ -150,8 +153,8 @@ public class Teleop extends OpMode {
         // --- Color detection ---
         String detectedColor = detectColor();
 
-        // Only allow new ball detection if outside ignore timer
-        if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && currentIndex < 3) {
+        // Only allow new ball detection if outside initial ignore AND sensor ignore timer
+        if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && now >= initialIgnoreUntil && currentIndex < 3) {
             slots[currentIndex] = detectedColor;
             currentIndex++;
             setSpindexIntakePosition(currentIndex); // move to next slot
@@ -225,6 +228,7 @@ public class Teleop extends OpMode {
         telemetry.addData("Rapid Fire State", rapidFireState);
         telemetry.addData("Intake Burst(ms)", Math.max(0, intakeBurstUntil - now));
         telemetry.addData("Sensor Ignore(ms)", Math.max(0, ignoreSensorUntil - now));
+        telemetry.addData("Initial Ignore(ms)", Math.max(0, initialIgnoreUntil - now));
         telemetry.update();
     }
 
