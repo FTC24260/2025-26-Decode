@@ -37,9 +37,9 @@ public class Teleop extends OpMode {
 
     // --- PIDF constants ---
     public static double kV = 0.00045;
-    public static double kS = 0;
-    public static double kP = 10;
-    public static double targetVelocity = 2200; // ticks/sec
+    public static double kS = 0.4;
+    public static double kP = 30;
+    public static double targetVelocity = 1500; // ticks/sec
     private static final double VELOCITY_TOLERANCE = 75; // ticks/sec
 
     // --- Color sensor ---
@@ -54,9 +54,9 @@ public class Teleop extends OpMode {
 
     // --- Sensor ignore timer ---
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 400; // 400 ms after spindex move
+    private static final long SENSOR_IGNORE_MS = 350; // 400 ms after spindex move
     private long initialIgnoreUntil = 0;
-    private static final long INITIAL_IGNORE_MS = 500; // ignore first 500 ms after start
+    private static final long INITIAL_IGNORE_MS = 900; // ignore first 500 ms after start
 
     // --- Flicker ---
     private final double flickerUp = 0.5;
@@ -76,7 +76,7 @@ public class Teleop extends OpMode {
     private int rapidFireIndex = 0;
     private long rapidFireTimer = 0;
     private static final long FLICK_UP_MS = 200;
-    private static final long WAIT_NEXT_MS = 200;
+    private static final long WAIT_NEXT_MS = 400;
 
     @Override
     public void init() {
@@ -158,14 +158,13 @@ public class Teleop extends OpMode {
             slots[currentIndex] = detectedColor;
             currentIndex++;
             setSpindexIntakePosition(currentIndex); // move to next slot
-            ignoreSensorUntil = now + SENSOR_IGNORE_MS; // ignore further detections for 400 ms
+            ignoreSensorUntil = now + SENSOR_IGNORE_MS; // ignore further detections for 350 ms
         }
 
         // --- Shooter PIDF control ---
-        double currentVelocity =
-                (Math.abs(shooterL.getVelocity()) + Math.abs(shooterR.getVelocity())) / 2.0;
-
+        // Keep shooter running during the entire rapid fire sequence
         if (rapidFireState != RapidFireState.IDLE) {
+            double currentVelocity = (Math.abs(shooterL.getVelocity()) + Math.abs(shooterR.getVelocity())) / 2.0;
             double ff = feedforward(targetVelocity);
             double fb = feedback(targetVelocity, currentVelocity);
             double power = clamp(ff + fb, 0.0, 1.0);
@@ -178,6 +177,7 @@ public class Teleop extends OpMode {
 
             case SPINUP:
                 setSpindexShootPosition(rapidFireIndex);
+                double currentVelocity = (Math.abs(shooterL.getVelocity()) + Math.abs(shooterR.getVelocity())) / 2.0;
                 if (currentVelocity >= targetVelocity - VELOCITY_TOLERANCE) {
                     flicker.setPosition(flickerUp);
                     rapidFireTimer = now + FLICK_UP_MS;
@@ -224,7 +224,7 @@ public class Teleop extends OpMode {
 
         // --- Telemetry ---
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
-        telemetry.addData("Shooter Vel", currentVelocity);
+        telemetry.addData("Shooter Vel", (shooterL.getVelocity() + shooterR.getVelocity()) / 2.0);
         telemetry.addData("Rapid Fire State", rapidFireState);
         telemetry.addData("Intake Burst(ms)", Math.max(0, intakeBurstUntil - now));
         telemetry.addData("Sensor Ignore(ms)", Math.max(0, ignoreSensorUntil - now));
