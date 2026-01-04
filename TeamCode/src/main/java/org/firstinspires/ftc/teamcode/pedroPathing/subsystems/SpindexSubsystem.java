@@ -1,113 +1,67 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.Subsystems;
 
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.hardware.ColorSensor;
-import com.qualcomm.robotcore.hardware.HardwareMap;
-
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants.Ball;
 
 public class SpindexSubsystem {
 
-    private final Servo spindexLeft;
-    private final Servo spindexRight;
-    private final ColorSensor colorSensor;
+    private final Servo leftIndex, rightIndex;
+    private final double[] intakePositions = {0.34, 0.603, 1.0};
+    private final double[] shootPositions = {0.73, 0.46, 0.20};
 
-    private static final int TOTAL_SLOTS = 6;
+    private int currentIndex = 0;
+    private double targetPosition = 0;
+    private static final double POSITION_EPSILON = 0.02;
 
-    private int currentSlot = 1;  // Start at first intake slot
-    private int targetSlot = 1;   // Desired slot
-    private Ball.Color[] slotColors = new Ball.Color[TOTAL_SLOTS];
+    private boolean sensorEnabled = true;
 
-    public SpindexSubsystem(HardwareMap hardwareMap) {
-        spindexLeft = hardwareMap.get(Servo.class, RobotConstants.Hardware.SPINDEX_LEFT);
-        spindexRight = hardwareMap.get(Servo.class, RobotConstants.Hardware.SPINDEX_RIGHT);
-        colorSensor = hardwareMap.get(ColorSensor.class, RobotConstants.Hardware.COLOR_SENSOR);
-
-        spindexLeft.setDirection(Servo.Direction.FORWARD);
-        spindexRight.setDirection(Servo.Direction.REVERSE);
-
-        // Initialize all slots as UNKNOWN
-        for (int i = 0; i < TOTAL_SLOTS; i++) slotColors[i] = Ball.Color.UNKNOWN;
-
-        // Move to first intake position
-        moveToSlot(targetSlot);
+    public SpindexSubsystem(Servo leftIndex, Servo rightIndex) {
+        this.leftIndex = leftIndex;
+        this.rightIndex = rightIndex;
+        setIntakePosition(0);
     }
 
-    // -------------------------
-    // High-level commands
-    // -------------------------
+    public boolean isSensorEnabled() {
+        return sensorEnabled;
+    }
 
-    /** Automatically detect ball and advance to next intake slot if needed */
-    public void intakeBallIfDetected() {
-        // Check intake positions only: 1, 3, 5
-        int intakeIndex = getNextEmptyIntakeSlot();
-        if (intakeIndex == -1) return; // All intake slots full
+    public int getCurrentIndex() {
+        return currentIndex;
+    }
 
-        Ball.Color detected = detectBallColor();
-        if (detected != Ball.Color.UNKNOWN) {
-            slotColors[intakeIndex] = detected;
-            targetSlot = intakeIndex;
-            moveToSlot(targetSlot);
-
-            // If all intake slots now full, rotate to first shooting position
-            if (areAllIntakeSlotsFull()) {
-                targetSlot = 0; // first shoot slot
-                moveToSlot(targetSlot);
+    public void update() {
+        // Unlock the sensor once servo reaches target
+        if (!sensorEnabled) {
+            double error = Math.abs(leftIndex.getPosition() - targetPosition);
+            if (error < POSITION_EPSILON) {
+                sensorEnabled = true;
             }
         }
     }
 
-    /** Move directly to next slot for shooting or manual control */
-    public void setSlot(int slot) {
-        targetSlot = slot % TOTAL_SLOTS;
-        moveToSlot(targetSlot);
+    public void onBallDetected() {
+        if (!sensorEnabled || currentIndex >= intakePositions.length) return;
+
+        currentIndex++;
+        setIntakePosition(currentIndex);
+        sensorEnabled = false; // lock sensor until servo moves
     }
 
-    /** Move spindex to home (first intake position) */
-    public void home() {
-        targetSlot = 1;
-        moveToSlot(targetSlot);
+    public void setIntakePosition(int index) {
+        if (index >= intakePositions.length) index = intakePositions.length - 1;
+        targetPosition = intakePositions[index];
+        leftIndex.setPosition(intakePositions[index]);
+        rightIndex.setPosition(1.0 - intakePositions[index]);
     }
 
-    // -------------------------
-    // Helpers
-    // -------------------------
-
-    /** Returns the index of the next empty intake slot (1, 3, 5) */
-    private int getNextEmptyIntakeSlot() {
-        int[] intakeSlots = {1, 3, 5};
-        for (int slot : intakeSlots) {
-            if (slotColors[slot] == Ball.Color.UNKNOWN) return slot;
-        }
-        return -1; // all full
+    public void setShootPosition(int index) {
+        if (index >= shootPositions.length) index = shootPositions.length - 1;
+        leftIndex.setPosition(shootPositions[index]);
+        rightIndex.setPosition(1.0 - shootPositions[index]);
     }
 
-    /** Checks if all intake slots are full */
-    private boolean areAllIntakeSlotsFull() {
-        return getNextEmptyIntakeSlot() == -1;
+    public void reset() {
+        currentIndex = 0;
+        setIntakePosition(0);
+        sensorEnabled = true;
     }
-
-    /** Detects the color of a ball at the sensor */
-    private Ball.Color detectBallColor() {
-        int red = colorSensor.red();
-        int green = colorSensor.green();
-
-        if (red + green < 10) return Ball.Color.UNKNOWN; // no ball detected
-        return (green > red) ? Ball.Color.GREEN : Ball.Color.PURPLE;
-    }
-
-    /** Moves the servo to a slot (full-speed) */
-    private void moveToSlot(int slot) {
-        double servoPosition = slot * RobotConstants.Spindex.SLOT_ANGLE_DEG / 180.0;
-        spindexLeft.setPosition(servoPosition);
-        spindexRight.setPosition(servoPosition);
-        currentSlot = slot;
-    }
-
-    // -------------------------
-    // Accessors
-    // -------------------------
-    public int getCurrentSlot() { return currentSlot; }
-    public Ball.Color getSlotColor(int slot) { return slotColors[slot % TOTAL_SLOTS]; }
 }

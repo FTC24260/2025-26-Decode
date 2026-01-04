@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.pedroPathing.tests;
+package org.firstinspires.ftc.teamcode.pedroPathing.Opmodes;
 
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
@@ -51,8 +51,6 @@ public class TeleopRestart extends OpMode {
     private final double[] shootPositions = {0.73, 0.46, 0.20};
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
-    private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 3000;
 
     // --- Flicker ---
     private final double flickerUp = 0.5;
@@ -147,11 +145,14 @@ public class TeleopRestart extends OpMode {
 
         // --- Color detection ---
         String detectedColor = detectColor();
-        if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && currentIndex < 3) {
+
+        // Check if spindex has reached the next intake position
+        boolean spindexReady = Math.abs(leftIndex.getPosition() - intakePositions[Math.min(currentIndex + 1, intakePositions.length - 1)]) < 0.01;
+
+        if (!detectedColor.equals("unknown") && spindexReady && currentIndex < 3) {
             slots[currentIndex] = detectedColor;
             setSpindexIntakePosition(currentIndex + 1);
             currentIndex++;
-            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
         // --- Shooter PIDF control ---
