@@ -16,7 +16,7 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
-@TeleOp(name = "FullTeleOp")
+@TeleOp(name = "FullTeleOp Rapid Fire")
 public class TeleopRestart extends OpMode {
 
     // --- Follower / Drive ---
@@ -38,7 +38,7 @@ public class TeleopRestart extends OpMode {
     // --- PIDF constants ---
     public static double kV = 0.00045;
     public static double kS = 0;
-    public static double kP = 3;
+    public static double kP = 10;
     public static double targetVelocity = 2200; // ticks/sec
     private static final double VELOCITY_TOLERANCE = 75; // ticks/sec
 
@@ -55,18 +55,24 @@ public class TeleopRestart extends OpMode {
     private static final long SENSOR_IGNORE_MS = 3000;
 
     // --- Flicker ---
-    private enum FlickerState {IDLE, WAIT_UP, UP}
-    private FlickerState flickerState = FlickerState.IDLE;
-    private long flickerTimer = 0;
     private final double flickerUp = 0.5;
     private final double flickerDown = 0.7;
 
     // --- Intake burst ---
     private long intakeBurstUntil = 0;
-    private static final long INTAKE_BURST_MS = 500;
+    private static final long INTAKE_BURST_MS = 400;
 
-    // --- A toggle ---
+    // --- A toggle / Rapid Fire ---
     private boolean lastA = false;
+
+    private enum RapidFireState {
+        IDLE, SPINUP, FLICK, WAIT_NEXT
+    }
+    private RapidFireState rapidFireState = RapidFireState.IDLE;
+    private int rapidFireIndex = 0;
+    private long rapidFireTimer = 0;
+    private static final long FLICK_UP_MS = 200;
+    private static final long WAIT_NEXT_MS = 200;
 
     @Override
     public void init() {
@@ -81,7 +87,6 @@ public class TeleopRestart extends OpMode {
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         rightRear = hardwareMap.get(DcMotor.class, "rightRear");
 
-        // Reverse left motors for proper mecanum
         leftFront.setDirection(DcMotor.Direction.REVERSE);
         leftRear.setDirection(DcMotor.Direction.REVERSE);
 
@@ -90,7 +95,6 @@ public class TeleopRestart extends OpMode {
 
         intake = hardwareMap.get(DcMotor.class, "intake");
 
-        // Shooter as DcMotorEx
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
         shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -134,14 +138,14 @@ public class TeleopRestart extends OpMode {
                 true
         );
 
-        // --- Intake logic with burst ---
+        // --- Intake logic ---
         if (now < intakeBurstUntil) {
-            intake.setPower(-1); // burst from A press
+            intake.setPower(-1); // burst
         } else {
             intake.setPower(pipeline.ballDetected ? -1 : 0); // normal intake
         }
 
-        // --- Color intake ---
+        // --- Color detection ---
         String detectedColor = detectColor();
         if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && currentIndex < 3) {
             slots[currentIndex] = detectedColor;
@@ -154,46 +158,67 @@ public class TeleopRestart extends OpMode {
         double currentVelocity =
                 (Math.abs(shooterL.getVelocity()) + Math.abs(shooterR.getVelocity())) / 2.0;
 
-        if (flickerState != FlickerState.IDLE) {
+        if (rapidFireState != RapidFireState.IDLE) {
             double ff = feedforward(targetVelocity);
             double fb = feedback(targetVelocity, currentVelocity);
             double power = clamp(ff + fb, 0.0, 1.0);
-
             shooterL.setPower(power);
             shooterR.setPower(power);
         }
 
-        // --- A toggle shooting (velocity based) ---
-        if (gamepad1.a && !lastA && shootNearestAny()) {
-            // Start spinning shooter, wait until velocity reaches target
-            flickerState = FlickerState.WAIT_UP;
-            intakeBurstUntil = now + INTAKE_BURST_MS; // burst intake
+        // --- Rapid Fire FSM ---
+        switch (rapidFireState) {
+
+            case SPINUP:
+                setSpindexShootPosition(rapidFireIndex);
+                if (currentVelocity >= targetVelocity - VELOCITY_TOLERANCE) {
+                    flicker.setPosition(flickerUp);
+                    rapidFireTimer = now + FLICK_UP_MS;
+                    rapidFireState = RapidFireState.FLICK;
+                }
+                break;
+
+            case FLICK:
+                if (now >= rapidFireTimer) {
+                    flicker.setPosition(flickerDown);
+                    slots[rapidFireIndex] = "unknown";
+
+                    if (rapidFireIndex < slots.length - 1 && anySlotLoaded()) {
+                        rapidFireIndex++;
+                        intakeBurstUntil = now + INTAKE_BURST_MS;
+                        rapidFireTimer = now + WAIT_NEXT_MS;
+                        rapidFireState = RapidFireState.WAIT_NEXT;
+                    } else {
+                        rapidFireState = RapidFireState.IDLE;
+                        shooterL.setPower(0);
+                        shooterR.setPower(0);
+                    }
+                }
+                break;
+
+            case WAIT_NEXT:
+                setSpindexShootPosition(rapidFireIndex);
+                if (now >= rapidFireTimer) {
+                    rapidFireState = RapidFireState.SPINUP;
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        // --- Rapid fire trigger ---
+        if (gamepad1.a && !lastA && anySlotLoaded()) {
+            rapidFireState = RapidFireState.SPINUP;
+            rapidFireIndex = 0;
+            rapidFireTimer = 0;
         }
         lastA = gamepad1.a;
 
-        // --- Flicker FSM ---
-        if (flickerState == FlickerState.WAIT_UP) {
-            if (currentVelocity >= targetVelocity - VELOCITY_TOLERANCE) {
-                flicker.setPosition(flickerUp);
-                flickerState = FlickerState.UP;
-                flickerTimer = now + 300; // hold up for 300ms
-            }
-        } else if (flickerState == FlickerState.UP && now >= flickerTimer) {
-            flicker.setPosition(flickerDown);
-            flickerState = FlickerState.IDLE;
-            shooterL.setPower(0);
-            shooterR.setPower(0);
-
-            // reset spindex if all slots empty
-            if (slots[0].equals("unknown") && slots[1].equals("unknown") && slots[2].equals("unknown")) {
-                setSpindexIntakePosition(0);
-                currentIndex = 0;
-            }
-        }
-
+        // --- Telemetry ---
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
-        telemetry.addData("Flicker State", flickerState);
-        telemetry.addData("Shooter Velocity", currentVelocity);
+        telemetry.addData("Shooter Vel", currentVelocity);
+        telemetry.addData("Rapid Fire State", rapidFireState);
         telemetry.addData("Intake Burst(ms)", Math.max(0, intakeBurstUntil - now));
         telemetry.update();
     }
@@ -234,25 +259,9 @@ public class TeleopRestart extends OpMode {
         rightIndex.setPosition(1.0 - shootPositions[index]);
     }
 
-    private boolean shootNearestAny() {
-        double currentPos = leftIndex.getPosition();
-        double nearestDist = Double.MAX_VALUE;
-        int nearestIndex = -1;
-
-        for (int i = 0; i < slots.length; i++) {
-            if (!slots[i].equals("unknown")) {
-                double dist = Math.abs(currentPos - shootPositions[i]);
-                if (dist < nearestDist) {
-                    nearestDist = dist;
-                    nearestIndex = i;
-                }
-            }
-        }
-
-        if (nearestIndex != -1) {
-            setSpindexShootPosition(nearestIndex);
-            slots[nearestIndex] = "unknown";
-            return true;
+    private boolean anySlotLoaded() {
+        for (String s : slots) {
+            if (!s.equals("unknown")) return true;
         }
         return false;
     }
