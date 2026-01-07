@@ -19,93 +19,117 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 @TeleOp(name = "FullTeleOp")
 public class Teleop extends OpMode {
 
-    // --- Follower / Drive ---
+    // =======================
+    // DRIVE
+    // =======================
     private Follower follower;
     public static Pose startingPose;
     private TelemetryManager telemetryM;
 
-    // --- Drive motors ---
     private DcMotor leftFront, leftRear, rightFront, rightRear;
 
-    // --- Vision & intake ---
+    // =======================
+    // VISION / INTAKE
+    // =======================
     private VisionPortal visionPortal;
     private ArtifactPipeline pipeline;
     private DcMotor intake;
 
-    // --- Shooter ---
+    // =======================
+    // SHOOTER
+    // =======================
     private DcMotorEx shooterL, shooterR;
 
-    // --- PIDF constants ---
-    public static double kV = 0.00045;
+    public static double kV = 0.0005;
     public static double kS = 0.4;
-    public static double kP = 30;
-    public static double targetVelocity = 1500; // ticks/sec
-    private static final double VELOCITY_TOLERANCE = 75; // ticks/sec
+    public static double targetVelocity = 2200;
 
-    // --- Color sensor ---
+    // =======================
+    // COLOR SENSOR
+    // =======================
     private ColorSensor colorSensor;
 
-    // --- Spindex ---
+    // =======================
+    // SPINDEX
+    // =======================
     private Servo leftIndex, rightIndex, flicker;
+
     private final double[] intakePositions = {0.34, 0.603, 1.0};
-    private final double[] shootPositions = {0.73, 0.46, 0.20};
+    private final double[] shootPositions  = {0.73, 0.46, 0.20};
+
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
-    // --- Sensor ignore timer ---
+    // =======================
+    // TIMERS
+    // =======================
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 350; // 400 ms after spindex move
+    private static final long SENSOR_IGNORE_MS = 450;
+
     private long initialIgnoreUntil = 0;
-    private static final long INITIAL_IGNORE_MS = 900; // ignore first 500 ms after start
+    private static final long INITIAL_IGNORE_MS = 900;
 
-    // --- Flicker ---
-    private final double flickerUp = 0.5;
-    private final double flickerDown = 0.7;
-
-    // --- Intake burst ---
     private long intakeBurstUntil = 0;
     private static final long INTAKE_BURST_MS = 400;
 
-    // --- A toggle / Rapid Fire ---
-    private boolean lastA = false;
+    // =======================
+    // FLICKER
+    // =======================
+    private final double flickerUp = 0.5;
+    private final double flickerDown = 0.7;
 
+    // =======================
+    // RAPID FIRE FSM
+    // =======================
     private enum RapidFireState {
-        IDLE, SPINUP, FLICK, WAIT_NEXT
+        IDLE,
+        SPINUP_WAIT,
+        FLICK_UP
     }
+
     private RapidFireState rapidFireState = RapidFireState.IDLE;
     private int rapidFireIndex = 0;
     private long rapidFireTimer = 0;
-    private static final long FLICK_UP_MS = 200;
-    private static final long WAIT_NEXT_MS = 400;
 
+    private static final long SPINUP_DELAY_MS = 900;
+    private static final long FLICK_UP_MS = 200;
+
+    private boolean lastA = false;
+
+    // =======================
+    // INIT
+    // =======================
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         if (startingPose == null) startingPose = new Pose();
         follower.setStartingPose(startingPose);
         follower.update();
+
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
-        leftFront = hardwareMap.get(DcMotor.class, "leftFront");
-        leftRear = hardwareMap.get(DcMotor.class, "leftRear");
+        leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
+        leftRear   = hardwareMap.get(DcMotor.class, "leftRear");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
-        rightRear = hardwareMap.get(DcMotor.class, "rightRear");
+        rightRear  = hardwareMap.get(DcMotor.class, "rightRear");
 
         leftFront.setDirection(DcMotor.Direction.REVERSE);
         leftRear.setDirection(DcMotor.Direction.REVERSE);
 
-        DcMotor[] motors = {leftFront, leftRear, rightFront, rightRear};
-        for (DcMotor m : motors) m.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
+        for (DcMotor m : new DcMotor[]{leftFront, leftRear, rightFront, rightRear}) {
+            m.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
+        }
 
         intake = hardwareMap.get(DcMotor.class, "intake");
 
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
+        shooterR.setDirection(DcMotor.Direction.REVERSE);
+
         shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterL.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
         shooterR.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
-        shooterR.setDirection(DcMotor.Direction.REVERSE);
 
         pipeline = new ArtifactPipeline();
         visionPortal = new VisionPortal.Builder()
@@ -126,14 +150,17 @@ public class Teleop extends OpMode {
     @Override
     public void start() {
         follower.startTeleopDrive();
-        initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS; // start 500 ms ignore
+        initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
     }
 
+    // =======================
+    // LOOP
+    // =======================
     @Override
     public void loop() {
         long now = System.currentTimeMillis();
 
-        // --- Mecanum / Teleop drive ---
+        // --- Drive ---
         follower.update();
         telemetryM.update();
         follower.setTeleOpDrive(
@@ -143,70 +170,69 @@ public class Teleop extends OpMode {
                 true
         );
 
-        // --- Intake logic ---
+        // --- Intake ---
         if (now < intakeBurstUntil) {
-            intake.setPower(-1); // burst
+            intake.setPower(-1);
         } else {
-            intake.setPower(pipeline.ballDetected ? -1 : 0); // normal intake
+            intake.setPower(pipeline.ballDetected ? -1 : 0);
         }
 
-        // --- Color detection ---
+        // --- Color detect ---
         String detectedColor = detectColor();
+        if (!detectedColor.equals("unknown")
+                && now >= ignoreSensorUntil
+                && now >= initialIgnoreUntil
+                && currentIndex < 3) {
 
-        // Only allow new ball detection if outside initial ignore AND sensor ignore timer
-        if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && now >= initialIgnoreUntil && currentIndex < 3) {
             slots[currentIndex] = detectedColor;
             currentIndex++;
-            setSpindexIntakePosition(currentIndex); // move to next slot
-            ignoreSensorUntil = now + SENSOR_IGNORE_MS; // ignore further detections for 350 ms
+            setSpindexIntakePosition(currentIndex);
+            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
-        // --- Shooter PIDF control ---
-        // Keep shooter running during the entire rapid fire sequence
+        // =======================
+        // SHOOTER (MAX POWER ENTIRE BURST)
+        // =======================
         if (rapidFireState != RapidFireState.IDLE) {
-            double currentVelocity = (Math.abs(shooterL.getVelocity()) + Math.abs(shooterR.getVelocity())) / 2.0;
-            double ff = feedforward(targetVelocity);
-            double fb = feedback(targetVelocity, currentVelocity);
-            double power = clamp(ff + fb, 0.0, 1.0);
+            double power = clamp(feedforward(targetVelocity), 0, 1);
             shooterL.setPower(power);
             shooterR.setPower(power);
         }
 
-        // --- Rapid Fire FSM ---
+        // =======================
+        // RAPID FIRE FSM
+        // =======================
         switch (rapidFireState) {
 
-            case SPINUP:
+            case SPINUP_WAIT:
                 setSpindexShootPosition(rapidFireIndex);
-                double currentVelocity = (Math.abs(shooterL.getVelocity()) + Math.abs(shooterR.getVelocity())) / 2.0;
-                if (currentVelocity >= targetVelocity - VELOCITY_TOLERANCE) {
+                if (now >= rapidFireTimer) {
                     flicker.setPosition(flickerUp);
                     rapidFireTimer = now + FLICK_UP_MS;
-                    rapidFireState = RapidFireState.FLICK;
+                    rapidFireState = RapidFireState.FLICK_UP;
                 }
                 break;
 
-            case FLICK:
+            case FLICK_UP:
                 if (now >= rapidFireTimer) {
                     flicker.setPosition(flickerDown);
                     slots[rapidFireIndex] = "unknown";
 
-                    if (rapidFireIndex < slots.length - 1 && anySlotLoaded()) {
+                    if (rapidFireIndex < 2 && anySlotLoaded()) {
                         rapidFireIndex++;
                         intakeBurstUntil = now + INTAKE_BURST_MS;
-                        rapidFireTimer = now + WAIT_NEXT_MS;
-                        rapidFireState = RapidFireState.WAIT_NEXT;
+                        rapidFireTimer = now + SPINUP_DELAY_MS;
+                        rapidFireState = RapidFireState.SPINUP_WAIT;
                     } else {
+                        // DONE — reset everything
                         rapidFireState = RapidFireState.IDLE;
                         shooterL.setPower(0);
                         shooterR.setPower(0);
-                    }
-                }
-                break;
 
-            case WAIT_NEXT:
-                setSpindexShootPosition(rapidFireIndex);
-                if (now >= rapidFireTimer) {
-                    rapidFireState = RapidFireState.SPINUP;
+                        rapidFireIndex = 0;
+                        currentIndex = 0;
+                        setSpindexIntakePosition(0);
+                    }
                 }
                 break;
 
@@ -214,21 +240,22 @@ public class Teleop extends OpMode {
                 break;
         }
 
-        // --- Rapid fire trigger ---
+        // =======================
+        // TRIGGER
+        // =======================
         if (gamepad1.a && !lastA && anySlotLoaded()) {
-            rapidFireState = RapidFireState.SPINUP;
             rapidFireIndex = 0;
-            rapidFireTimer = 0;
+            rapidFireTimer = now + SPINUP_DELAY_MS;
+            rapidFireState = RapidFireState.SPINUP_WAIT;
         }
         lastA = gamepad1.a;
 
-        // --- Telemetry ---
+        // =======================
+        // TELEMETRY
+        // =======================
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
-        telemetry.addData("Shooter Vel", (shooterL.getVelocity() + shooterR.getVelocity()) / 2.0);
-        telemetry.addData("Rapid Fire State", rapidFireState);
-        telemetry.addData("Intake Burst(ms)", Math.max(0, intakeBurstUntil - now));
-        telemetry.addData("Sensor Ignore(ms)", Math.max(0, ignoreSensorUntil - now));
-        telemetry.addData("Initial Ignore(ms)", Math.max(0, initialIgnoreUntil - now));
+        telemetry.addData("RapidFire", rapidFireState);
+        telemetry.addData("CurrentIndex", currentIndex);
         telemetry.update();
     }
 
@@ -243,16 +270,17 @@ public class Teleop extends OpMode {
     // =======================
     // HELPERS
     // =======================
-
     private String detectColor() {
         int r = colorSensor.red();
         int g = colorSensor.green();
         int b = colorSensor.blue();
 
         if (g > 1.2 * r && g > 1.2 * b && g > 20) return "green";
+
         int maxRB = Math.max(r, b);
         int minRB = Math.min(r, b);
         if (maxRB > 40 && minRB >= 0.5 * maxRB && g < 0.7 * maxRB) return "purple";
+
         return "unknown";
     }
 
@@ -275,16 +303,8 @@ public class Teleop extends OpMode {
         return false;
     }
 
-    // =======================
-    // PIDF helpers
-    // =======================
     private double feedforward(double targetVel) {
-        if (Math.abs(targetVel) < 1e-6) return 0;
         return kS * Math.signum(targetVel) + kV * targetVel;
-    }
-
-    private double feedback(double targetVel, double currentVel) {
-        return kP * (targetVel - currentVel);
     }
 
     private double clamp(double v, double min, double max) {
