@@ -17,7 +17,7 @@ public class LimelightAprilTags extends LinearOpMode {
 
         telemetry.setMsTransmissionInterval(11);
 
-        // Start the limelight before waitForStart() for initialization
+        // Start the limelight before waitForStart() for initializations
         limelight.start();
 
         telemetry.addData("Status", "Initialized - Ready to test pipelines");
