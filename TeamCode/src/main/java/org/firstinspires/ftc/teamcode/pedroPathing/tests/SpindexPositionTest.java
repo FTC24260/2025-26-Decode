@@ -8,16 +8,13 @@ import com.qualcomm.robotcore.hardware.Servo;
 @TeleOp(name = "Spindex Position Test")
 public class SpindexPositionTest extends OpMode {
 
-    private Servo leftIndex, rightIndex, flicker;
-    private DcMotor intake, shooter;
+    private Servo leftIndex, rightIndex;
 
     // Spindex positions (RB / LB)
-    private final double[] positions = {0.34, 0.603, 1.0};
+    private final double[] positions = {0.68, 0.42, 0.17};
     private int currentIndex = 0;
 
     // A-button toggle positions
-    private final double[] aPositions = {0.2, 0.46, 0.71};
-    private int aIndex = -1; // start so first press goes to 0.44
 
     // Edge detection
     private boolean prevRB = false;
@@ -28,9 +25,6 @@ public class SpindexPositionTest extends OpMode {
     public void init() {
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
-        intake = hardwareMap.get(DcMotor.class, "intake");
-        flicker = hardwareMap.get(Servo.class, "flicker");
-        shooter = hardwareMap.get(DcMotor.class, "shooter");
 
         // Initial spindex position
         setSpindexPosition(currentIndex);
@@ -75,59 +69,10 @@ public class SpindexPositionTest extends OpMode {
            A BUTTON TOGGLE
            ===================== */
 
-        if (a && !prevA) {
-            aIndex++;
-            if (aIndex >= aPositions.length) {
-                aIndex = 0;
-            }
 
-            leftIndex.setPosition(aPositions[aIndex]);
-            rightIndex.setPosition(1.0 - leftIndex.getPosition());
-        }
-
-        prevA = a;
-
-        /* =====================
-           INTAKE
-           ===================== */
-
-        if (gamepad1.right_trigger > 0.1) {
-            intake.setPower(-1);
-        }
-        else if (gamepad1.left_trigger > 0.1) {
-            intake.setPower(1);
-        }
-        else {
-            intake.setPower(0);
-        }
-
-        /* =====================
-           FLICKER
-           ===================== */
-
-        if (gamepad1.start) {          // flicker down
-            flicker.setPosition(0.7);
-        }
-        else if (gamepad1.back) {      // flicker up
-            flicker.setPosition(0.5);
-        }
-
-        /* =====================
-           Shooter
-           ===================== */
-
-        if (gamepad1.right_stick_button) { shooter.setPower(1); }
-        else { shooter.setPower(0);
-        }
-
-        /* =====================
-           TELEMETRY
-           ===================== */
 
         telemetry.addData("Spindex Index", currentIndex);
-        telemetry.addData("A Index", aIndex);
         telemetry.addData("Left Servo Pos", leftIndex.getPosition());
-        telemetry.addData("Shooter Speed", shooter.getPower());
         telemetry.update();
     }
 

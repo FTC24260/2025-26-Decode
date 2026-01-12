@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode.pedroPathing.Opmodes;
 
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
-import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
@@ -13,7 +11,6 @@ import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
 @TeleOp(name = "FullTeleOp")
@@ -22,11 +19,8 @@ public class Teleop extends OpMode {
     // =======================
     // DRIVE
     // =======================
-    private Follower follower;
-    public static Pose startingPose;
-    private TelemetryManager telemetryM;
-
     private DcMotor leftFront, leftRear, rightFront, rightRear;
+    private TelemetryManager telemetryM;
 
     // =======================
     // VISION / INTAKE
@@ -42,7 +36,7 @@ public class Teleop extends OpMode {
 
     public static double kV = 0.0005;
     public static double kS = 0.4;
-    public static double targetVelocity = 2200;
+    public static double targetVelocity = 100;
 
     // =======================
     // COLOR SENSOR
@@ -54,8 +48,8 @@ public class Teleop extends OpMode {
     // =======================
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] intakePositions = {0.34, 0.603, 1.0};
-    private final double[] shootPositions  = {0.73, 0.46, 0.20};
+    private final double[] intakePositions = {0.55, 0.813, 0.3};
+    private final double[] shootPositions  = {0.68, 0.42, 0.17};
 
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
@@ -64,19 +58,19 @@ public class Teleop extends OpMode {
     // TIMERS
     // =======================
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 450;
+    private static final long SENSOR_IGNORE_MS = 1000;
 
     private long initialIgnoreUntil = 0;
-    private static final long INITIAL_IGNORE_MS = 900;
+    private static final long INITIAL_IGNORE_MS = 1500;
 
     private long intakeBurstUntil = 0;
-    private static final long INTAKE_BURST_MS = 400;
+    private static final long INTAKE_BURST_MS = 800;
 
     // =======================
     // FLICKER
     // =======================
     private final double flickerUp = 0.5;
-    private final double flickerDown = 0.7;
+    private final double flickerDown = 0.75;
 
     // =======================
     // RAPID FIRE FSM
@@ -91,7 +85,7 @@ public class Teleop extends OpMode {
     private int rapidFireIndex = 0;
     private long rapidFireTimer = 0;
 
-    private static final long SPINUP_DELAY_MS = 900;
+    private static final long SPINUP_DELAY_MS = 1000;
     private static final long FLICK_UP_MS = 200;
 
     private boolean lastA = false;
@@ -101,11 +95,6 @@ public class Teleop extends OpMode {
     // =======================
     @Override
     public void init() {
-        follower = Constants.createFollower(hardwareMap);
-        if (startingPose == null) startingPose = new Pose();
-        follower.setStartingPose(startingPose);
-        follower.update();
-
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
         leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
@@ -149,7 +138,6 @@ public class Teleop extends OpMode {
 
     @Override
     public void start() {
-        follower.startTeleopDrive();
         initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
     }
 
@@ -160,24 +148,40 @@ public class Teleop extends OpMode {
     public void loop() {
         long now = System.currentTimeMillis();
 
-        // --- Drive ---
-        follower.update();
-        telemetryM.update();
-        follower.setTeleOpDrive(
-                -gamepad2.left_stick_y,
-                -gamepad2.left_stick_x,
-                -gamepad2.right_stick_x,
-                true
-        );
+        // =======================
+        // MECANUM DRIVE
+        // =======================
+        double y = -gamepad2.left_stick_y;   // forward
+        double x = gamepad2.left_stick_x;   // strafe
+        double rx = gamepad2.right_stick_x; // rotate
 
-        // --- Intake ---
+        double lf = y + x + rx;
+        double lr = y - x + rx;
+        double rf = y - x - rx;
+        double rr = y + x - rx;
+
+        double max = Math.max(1.0,
+                Math.max(Math.abs(lf),
+                        Math.max(Math.abs(lr),
+                                Math.max(Math.abs(rf), Math.abs(rr)))));
+
+        leftFront.setPower(lf / max);
+        leftRear.setPower(lr / max);
+        rightFront.setPower(rf / max);
+        rightRear.setPower(rr / max);
+
+        // =======================
+        // INTAKE
+        // =======================
         if (now < intakeBurstUntil) {
             intake.setPower(-1);
         } else {
             intake.setPower(pipeline.ballDetected ? -1 : 0);
         }
 
-        // --- Color detect ---
+        // =======================
+        // COLOR DETECT
+        // =======================
         String detectedColor = detectColor();
         if (!detectedColor.equals("unknown")
                 && now >= ignoreSensorUntil
@@ -191,7 +195,7 @@ public class Teleop extends OpMode {
         }
 
         // =======================
-        // SHOOTER (MAX POWER ENTIRE BURST)
+        // SHOOTER POWER
         // =======================
         if (rapidFireState != RapidFireState.IDLE) {
             double power = clamp(feedforward(targetVelocity), 0, 1);
@@ -224,19 +228,14 @@ public class Teleop extends OpMode {
                         rapidFireTimer = now + SPINUP_DELAY_MS;
                         rapidFireState = RapidFireState.SPINUP_WAIT;
                     } else {
-                        // DONE — reset everything
                         rapidFireState = RapidFireState.IDLE;
                         shooterL.setPower(0);
                         shooterR.setPower(0);
-
                         rapidFireIndex = 0;
                         currentIndex = 0;
                         setSpindexIntakePosition(0);
                     }
                 }
-                break;
-
-            default:
                 break;
         }
 
@@ -244,18 +243,15 @@ public class Teleop extends OpMode {
         // TRIGGER
         // =======================
         if (gamepad1.a && !lastA && anySlotLoaded()) {
+            intakeBurstUntil = now + INTAKE_BURST_MS;
             rapidFireIndex = 0;
             rapidFireTimer = now + SPINUP_DELAY_MS;
             rapidFireState = RapidFireState.SPINUP_WAIT;
         }
         lastA = gamepad1.a;
 
-        // =======================
-        // TELEMETRY
-        // =======================
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
         telemetry.addData("RapidFire", rapidFireState);
-        telemetry.addData("CurrentIndex", currentIndex);
         telemetry.update();
     }
 
