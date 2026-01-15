@@ -28,10 +28,14 @@ public final class RobotConstants {
     // Spindex
     // ----------------------
     public static final class Spindex {
-        public static final double SLOT_ANGLE_DEG = 120.0;
-        public static final double HOME_POS       = 0.0;
-        public static final double RIGHT_SCALE    = 1.0;
-        public static final double LEFT_SCALE     = -1.0;
+        public static final double INTAKE_1 = 0.55;
+        public static final double INTAKE_2 = 0.813;
+        public static final double INTAKE_3 = 0.3;
+        public static final double SHOOT_1 = 0.68;
+        public static final double SHOOT_2 = 0.42;
+        public static final double SHOOT_3 = 0.17;
+        public static final int SENSOR_IGNORE = 1000;
+        public static final int INITIAL_IGNORE = 1500;
     }
 
     // ----------------------
@@ -78,8 +82,8 @@ public final class RobotConstants {
     // Kicker
     // ----------------------
     public static final class Kicker {
-        public static final double REST_POS = 0.15;
-        public static final double FIRE_POS = 0.55;
+        public static final double REST_POS = 0.7;
+        public static final double FIRE_POS = 0.5;
     }
 
     // ----------------------
