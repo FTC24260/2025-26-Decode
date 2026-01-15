@@ -9,9 +9,16 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.robot.Robot;
+
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.DriveSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.SpindexSubsystem;
+
 
 @TeleOp(name = "FullTeleOp")
 public class Teleop extends OpMode {
@@ -19,6 +26,10 @@ public class Teleop extends OpMode {
     // =======================
     // DRIVE
     // =======================
+    RobotConstants robotConstants = new RobotConstants();
+    DriveSubsystem driveSubsystem = new DriveSubsystem(hardwareMap, telemetry);
+    ShooterSubsystem shooterSubsystem = new ShooterSubsystem(hardwareMap);
+    SpindexSubsystem spindexSubsystem = new SpindexSubsystem(hardwareMap);
     private DcMotor leftFront, leftRear, rightFront, rightRear;
     private TelemetryManager telemetryM;
 
