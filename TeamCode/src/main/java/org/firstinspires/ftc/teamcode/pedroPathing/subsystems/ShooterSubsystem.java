@@ -1,106 +1,89 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.Subsystems;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
 
 public class ShooterSubsystem {
 
-    private final DcMotor shooterMotor;      // flywheel
-    private final DcMotor yawMotor;          // rotates turret
-    private final Servo pitchServoLeft;      // left hood servo
-    private final Servo pitchServoRight;     // right hood servo (mirrored)
-
-    // PID constants for yaw
-    private final double kP = RobotConstants.Shooter.KP;
-    private final double kI = RobotConstants.Shooter.KI;
-    private final double kD = RobotConstants.Shooter.KD;
-
-    private double targetYawAngle = 0;
-    private double lastError = 0;
-    private double integral = 0;
-
-    // Hood pitch limits (normalized servo range)
-    private final double pitchMin = 0.0;   // straight up
-    private final double pitchMax = 1.0;   // max down
+    private DcMotorEx shooterL, shooterR;
+    private DcMotorEx turret;
 
     public ShooterSubsystem(HardwareMap hardwareMap) {
-        shooterMotor = hardwareMap.get(DcMotor.class, RobotConstants.Hardware.SHOOTER_MOTOR);
-        yawMotor = hardwareMap.get(DcMotor.class, RobotConstants.Hardware.TURRET_MOTOR);
+        shooterL = hardwareMap.get(DcMotorEx.class, RobotConstants.Hardware.SHOOTER_L);
+        shooterR = hardwareMap.get(DcMotorEx.class, RobotConstants.Hardware.SHOOTER_R);
+        turret   = hardwareMap.get(DcMotorEx.class, RobotConstants.Hardware.TURRET_MOTOR);
 
-        pitchServoLeft  = hardwareMap.get(Servo.class, RobotConstants.Hardware.HOOD_LEFT);
-        pitchServoRight = hardwareMap.get(Servo.class, RobotConstants.Hardware.HOOD_RIGHT);
+        shooterR.setDirection(DcMotor.Direction.REVERSE);
 
-        // Flywheel motor setup
-        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // Yaw motor setup
-        yawMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        yawMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooterL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        // Start both pitch servos at middle
-        setPitchPosition(0.5);
+        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        turret.setDirection(
+                RobotConstants.Turret.IF_REVERSED
+                        ? DcMotor.Direction.REVERSE
+                        : DcMotor.Direction.FORWARD
+        );
     }
 
-    /* ---------- Shooter wheel control ---------- */
+    public void setTargetVelocity(double targetVelocity) {
+        double power = clamp(feedforward(targetVelocity), 0, 1);
+        shooterL.setPower(power);
+        shooterR.setPower(power);
+    }
 
-    public void setShooterPower(double power) {
-        shooterMotor.setPower(power);
+    public void setPowerFromDistance(double distanceInches) {
+        double power = interpolatePower(distanceInches);
+        shooterL.setPower(power);
+        shooterR.setPower(power);
+    }
+
+    public void setTurretPower(double power) {
+        turret.setPower(clamp(power, -1, 1));
     }
 
     public void stopShooter() {
-        shooterMotor.setPower(0);
+        shooterL.setPower(0);
+        shooterR.setPower(0);
     }
 
-    public double getShooterPower() {
-        return shooterMotor.getPower();
+    public void stopTurret() {
+        turret.setPower(0);
     }
 
-    /* ---------- Pitch control (mirrored left & right) ---------- */
+    private double interpolatePower(double distance) {
+        double[][] table = RobotConstants.Shooter.POWER_TABLE;
 
-    public void setPitchPosition(double position) {
-        // Clamp input
-        position = Math.min(Math.max(position, pitchMin), pitchMax);
+        if (distance <= table[0][0]) return table[0][1];
+        if (distance >= table[table.length - 1][0]) return table[table.length - 1][1];
 
-        // Left servo direct
-        pitchServoLeft.setPosition(position);
+        for (int i = 0; i < table.length - 1; i++) {
+            double d0 = table[i][0];
+            double p0 = table[i][1];
+            double d1 = table[i + 1][0];
+            double p1 = table[i + 1][1];
 
-        // Right servo mirrored
-        pitchServoRight.setPosition(Math.abs(1.0 - position));
+            if (distance >= d0 && distance <= d1) {
+                double t = (distance - d0) / (d1 - d0);
+                return p0 + t * (p1 - p0);
+            }
+        }
+
+        return 0;
     }
 
-    public double getPitchPosition() {
-        return pitchServoLeft.getPosition();
+    private double feedforward(double targetVel) {
+        return RobotConstants.Shooter.KS * Math.signum(targetVel)
+                + RobotConstants.Shooter.KV * targetVel;
     }
 
-    /* ---------- Yaw control (PID) ---------- */
-
-    public void setYawAngle(double angle) {
-        targetYawAngle = angle;
-    }
-
-    public void updateYaw() {
-        double currentYawTicks = yawMotor.getCurrentPosition();
-
-        // TODO: replace 1:1 with your real ticks→degrees conversion
-        double currentAngle = currentYawTicks;
-
-        double error = targetYawAngle - currentAngle;
-        integral += error;
-        double derivative = error - lastError;
-        lastError = error;
-
-        double output = (kP * error) + (kI * integral) + (kD * derivative);
-        output = Math.max(Math.min(output, 1.0), -1.0);  // clamp
-
-        yawMotor.setPower(output);
-    }
-
-    public boolean isYawAtTarget(double toleranceDegrees) {
-        double currentAngle = yawMotor.getCurrentPosition();
-        return Math.abs(currentAngle - targetYawAngle) <= toleranceDegrees;
+    private double clamp(double v, double min, double max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

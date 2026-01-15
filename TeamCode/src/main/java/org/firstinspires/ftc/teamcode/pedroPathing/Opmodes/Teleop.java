@@ -6,57 +6,31 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.robot.Robot;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.DriveSubsystem;
-import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.SpindexSubsystem;
-
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.ShooterSubsystem;
 
 @TeleOp(name = "FullTeleOp")
 public class Teleop extends OpMode {
 
-    // =======================
-    // DRIVE
-    // =======================
-    RobotConstants robotConstants = new RobotConstants();
-    DriveSubsystem driveSubsystem = new DriveSubsystem(hardwareMap, telemetry);
-    ShooterSubsystem shooterSubsystem = new ShooterSubsystem(hardwareMap);
-    SpindexSubsystem spindexSubsystem = new SpindexSubsystem(hardwareMap);
-    private DcMotor leftFront, leftRear, rightFront, rightRear;
+    RobotConstants robotConstant;
+    DriveSubsystem driveSubsystem;
+    ShooterSubsystem shooterSubsystem;
     private TelemetryManager telemetryM;
 
-    // =======================
-    // VISION / INTAKE
-    // =======================
     private VisionPortal visionPortal;
     private ArtifactPipeline pipeline;
     private DcMotor intake;
 
-    // =======================
-    // SHOOTER
-    // =======================
-    private DcMotorEx shooterL, shooterR;
-
-    public static double kV = 0.0005;
-    public static double kS = 0.4;
     public static double targetVelocity = 100;
 
-    // =======================
-    // COLOR SENSOR
-    // =======================
     private ColorSensor colorSensor;
 
-    // =======================
-    // SPINDEX
-    // =======================
     private Servo leftIndex, rightIndex, flicker;
 
     private final double[] intakePositions = {0.55, 0.813, 0.3};
@@ -65,9 +39,6 @@ public class Teleop extends OpMode {
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
-    // =======================
-    // TIMERS
-    // =======================
     private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 1000;
 
@@ -77,15 +48,9 @@ public class Teleop extends OpMode {
     private long intakeBurstUntil = 0;
     private static final long INTAKE_BURST_MS = 800;
 
-    // =======================
-    // FLICKER
-    // =======================
     private final double flickerUp = 0.5;
     private final double flickerDown = 0.75;
 
-    // =======================
-    // RAPID FIRE FSM
-    // =======================
     private enum RapidFireState {
         IDLE,
         SPINUP_WAIT,
@@ -101,35 +66,14 @@ public class Teleop extends OpMode {
 
     private boolean lastA = false;
 
-    // =======================
-    // INIT
-    // =======================
     @Override
     public void init() {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
-        leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
-        leftRear   = hardwareMap.get(DcMotor.class, "leftRear");
-        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
-        rightRear  = hardwareMap.get(DcMotor.class, "rightRear");
-
-        leftFront.setDirection(DcMotor.Direction.REVERSE);
-        leftRear.setDirection(DcMotor.Direction.REVERSE);
-
-        for (DcMotor m : new DcMotor[]{leftFront, leftRear, rightFront, rightRear}) {
-            m.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
-        }
+        driveSubsystem = new DriveSubsystem(hardwareMap, telemetry);
+        shooterSubsystem = new ShooterSubsystem(hardwareMap);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
-
-        shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
-        shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
-        shooterR.setDirection(DcMotor.Direction.REVERSE);
-
-        shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooterL.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
-        shooterR.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
 
         pipeline = new ArtifactPipeline();
         visionPortal = new VisionPortal.Builder()
@@ -152,47 +96,23 @@ public class Teleop extends OpMode {
         initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
     }
 
-    // =======================
-    // LOOP
-    // =======================
     @Override
     public void loop() {
         long now = System.currentTimeMillis();
 
-        // =======================
-        // MECANUM DRIVE
-        // =======================
-        double y = -gamepad2.left_stick_y;   // forward
-        double x = gamepad2.left_stick_x;   // strafe
-        double rx = gamepad2.right_stick_x; // rotate
+        double y = -gamepad2.left_stick_y;
+        double x = gamepad2.left_stick_x;
+        double rx = gamepad2.right_stick_x;
 
-        double lf = y + x + rx;
-        double lr = y - x + rx;
-        double rf = y - x - rx;
-        double rr = y + x - rx;
+        driveSubsystem.teleopDrive(y, x, rx);
+        driveSubsystem.update();
 
-        double max = Math.max(1.0,
-                Math.max(Math.abs(lf),
-                        Math.max(Math.abs(lr),
-                                Math.max(Math.abs(rf), Math.abs(rr)))));
-
-        leftFront.setPower(lf / max);
-        leftRear.setPower(lr / max);
-        rightFront.setPower(rf / max);
-        rightRear.setPower(rr / max);
-
-        // =======================
-        // INTAKE
-        // =======================
         if (now < intakeBurstUntil) {
             intake.setPower(-1);
         } else {
             intake.setPower(pipeline.ballDetected ? -1 : 0);
         }
 
-        // =======================
-        // COLOR DETECT
-        // =======================
         String detectedColor = detectColor();
         if (!detectedColor.equals("unknown")
                 && now >= ignoreSensorUntil
@@ -205,18 +125,10 @@ public class Teleop extends OpMode {
             ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
-        // =======================
-        // SHOOTER POWER
-        // =======================
         if (rapidFireState != RapidFireState.IDLE) {
-            double power = clamp(feedforward(targetVelocity), 0, 1);
-            shooterL.setPower(power);
-            shooterR.setPower(power);
+            shooterSubsystem.setTargetVelocity(targetVelocity);
         }
 
-        // =======================
-        // RAPID FIRE FSM
-        // =======================
         switch (rapidFireState) {
 
             case SPINUP_WAIT:
@@ -240,8 +152,7 @@ public class Teleop extends OpMode {
                         rapidFireState = RapidFireState.SPINUP_WAIT;
                     } else {
                         rapidFireState = RapidFireState.IDLE;
-                        shooterL.setPower(0);
-                        shooterR.setPower(0);
+                        shooterSubsystem.stopShooter();
                         rapidFireIndex = 0;
                         currentIndex = 0;
                         setSpindexIntakePosition(0);
@@ -250,9 +161,6 @@ public class Teleop extends OpMode {
                 break;
         }
 
-        // =======================
-        // TRIGGER
-        // =======================
         if (gamepad1.a && !lastA && anySlotLoaded()) {
             intakeBurstUntil = now + INTAKE_BURST_MS;
             rapidFireIndex = 0;
@@ -269,14 +177,10 @@ public class Teleop extends OpMode {
     @Override
     public void stop() {
         intake.setPower(0);
-        shooterL.setPower(0);
-        shooterR.setPower(0);
+        shooterSubsystem.stopShooter();
         visionPortal.close();
     }
 
-    // =======================
-    // HELPERS
-    // =======================
     private String detectColor() {
         int r = colorSensor.red();
         int g = colorSensor.green();
@@ -308,13 +212,5 @@ public class Teleop extends OpMode {
             if (!s.equals("unknown")) return true;
         }
         return false;
-    }
-
-    private double feedforward(double targetVel) {
-        return kS * Math.signum(targetVel) + kV * targetVel;
-    }
-
-    private double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
     }
 }
