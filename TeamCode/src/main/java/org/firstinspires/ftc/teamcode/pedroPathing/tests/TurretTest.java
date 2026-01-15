@@ -13,8 +13,8 @@ public class TurretTest extends LinearOpMode {
     private DcMotor turret;
 
     // ===== TUNING =====
-    private final double kP = 0.02;
-    private final double maxPower = 0.4;
+    private final double kP = 20;
+    private final double maxPower = 0.7;
     private final double deadzone = 1.0; // degrees
 
     @Override
