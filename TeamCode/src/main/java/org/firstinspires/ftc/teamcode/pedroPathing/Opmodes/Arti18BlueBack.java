@@ -28,7 +28,7 @@ public class Arti18BlueBack extends OpMode {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(72, 8, Math.toRadians(90)));
+        follower.setStartingPose(new Pose(21, 121.8, Math.toRadians(143.9)));
 
         paths = new Paths(follower); // Build paths
 

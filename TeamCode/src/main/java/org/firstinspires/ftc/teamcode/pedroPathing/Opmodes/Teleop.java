@@ -8,10 +8,12 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
+import org.firstinspires.ftc.teamcode.pedroPathing.Commands.RapidFireCommand;
 import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.SpindexSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Subsystems.TurretSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
 @TeleOp(name = "FullTeleOp")
 public class Teleop extends OpMode {
@@ -19,6 +21,8 @@ public class Teleop extends OpMode {
     private DriveSubsystem driveSubsystem;
     private ShooterSubsystem shooterSubsystem;
     private SpindexSubsystem spindexSubsystem;
+    private TurretSubsystem turretSubsystem;
+    private RapidFireCommand rapidFire;
     private TelemetryManager telemetryM;
 
     private VisionPortal visionPortal;
@@ -30,19 +34,6 @@ public class Teleop extends OpMode {
     private long intakeBurstUntil = 0;
     private static final long INTAKE_BURST_MS = 800;
 
-    private enum RapidFireState {
-        IDLE,
-        SPINUP_WAIT,
-        FLICK_UP
-    }
-
-    private RapidFireState rapidFireState = RapidFireState.IDLE;
-    private int rapidFireIndex = 0;
-    private long rapidFireTimer = 0;
-
-    private static final long SPINUP_DELAY_MS = 1000;
-    private static final long FLICK_UP_MS = 200;
-
     private boolean lastA = false;
 
     @Override
@@ -52,6 +43,8 @@ public class Teleop extends OpMode {
         driveSubsystem = new DriveSubsystem(hardwareMap, telemetry);
         shooterSubsystem = new ShooterSubsystem(hardwareMap);
         spindexSubsystem = new SpindexSubsystem(hardwareMap);
+        turretSubsystem = new TurretSubsystem(hardwareMap);
+        rapidFire = new RapidFireCommand(shooterSubsystem, spindexSubsystem);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
 
@@ -60,10 +53,6 @@ public class Teleop extends OpMode {
                 .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
                 .addProcessor(pipeline)
                 .build();
-    }
-
-    @Override
-    public void start() {
     }
 
     @Override
@@ -77,6 +66,8 @@ public class Teleop extends OpMode {
         driveSubsystem.teleopDrive(y, x, rx);
         driveSubsystem.update();
 
+        turretSubsystem.update();
+
         if (now < intakeBurstUntil) {
             intake.setPower(-1);
         } else {
@@ -85,49 +76,17 @@ public class Teleop extends OpMode {
 
         spindexSubsystem.updateSlots();
 
-        if (rapidFireState != RapidFireState.IDLE) {
-            shooterSubsystem.setTargetVelocity(targetVelocity);
-        }
-
-        switch (rapidFireState) {
-            case SPINUP_WAIT:
-                spindexSubsystem.setShootPosition(rapidFireIndex);
-                if (now >= rapidFireTimer) {
-                    spindexSubsystem.flickUp();
-                    rapidFireTimer = now + FLICK_UP_MS;
-                    rapidFireState = RapidFireState.FLICK_UP;
-                }
-                break;
-
-            case FLICK_UP:
-                if (now >= rapidFireTimer) {
-                    spindexSubsystem.flickDown();
-                    spindexSubsystem.resetSlots();
-
-                    if (rapidFireIndex < 2 && spindexSubsystem.anySlotLoaded()) {
-                        rapidFireIndex++;
-                        intakeBurstUntil = now + INTAKE_BURST_MS;
-                        rapidFireTimer = now + SPINUP_DELAY_MS;
-                        rapidFireState = RapidFireState.SPINUP_WAIT;
-                    } else {
-                        rapidFireState = RapidFireState.IDLE;
-                        shooterSubsystem.stopShooter();
-                        rapidFireIndex = 0;
-                    }
-                }
-                break;
-        }
-
-        if (gamepad1.a && !lastA && spindexSubsystem.anySlotLoaded()) {
+        if (gamepad1.a && !lastA && !rapidFire.isActive()) {
             intakeBurstUntil = now + INTAKE_BURST_MS;
-            rapidFireIndex = 0;
-            rapidFireTimer = now + SPINUP_DELAY_MS;
-            rapidFireState = RapidFireState.SPINUP_WAIT;
+            rapidFire.start(targetVelocity);
         }
         lastA = gamepad1.a;
 
+        rapidFire.update();
+
         telemetry.addData("Slots", String.join(", ", spindexSubsystem.getSlots()));
-        telemetry.addData("RapidFire", rapidFireState);
+        telemetry.addData("RapidFire", rapidFire.isActive());
+        telemetry.addData("Turret Locked", turretSubsystem.hasTarget());
         telemetry.update();
     }
 
@@ -135,6 +94,7 @@ public class Teleop extends OpMode {
     public void stop() {
         intake.setPower(0);
         shooterSubsystem.stopShooter();
+        turretSubsystem.stop();
         visionPortal.close();
     }
 }
