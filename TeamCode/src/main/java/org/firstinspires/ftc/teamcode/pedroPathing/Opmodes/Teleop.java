@@ -16,47 +16,29 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 @TeleOp(name = "FullTeleOp")
 public class Teleop extends OpMode {
 
-    // =======================
-    // DRIVE
-    // =======================
     private DcMotor leftFront, leftRear, rightFront, rightRear;
     private TelemetryManager telemetryM;
 
-    // =======================
-    // VISION / INTAKE
-    // =======================
     private VisionPortal visionPortal;
     private ArtifactPipeline pipeline;
     private DcMotor intake;
 
-    // =======================
-    // SHOOTER
-    // =======================
     private DcMotorEx shooterL, shooterR;
 
     public static double kV = 0.0005;
     public static double kS = 0.4;
     public static double targetVelocity = 100;
 
-    // =======================
-    // COLOR SENSOR
-    // =======================
     private ColorSensor colorSensor;
 
-    // =======================
-    // SPINDEX
-    // =======================
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] intakePositions = {0.55, 0.813, 0.3};
+    private final double[] intakePositions = {0.4, 0.5, 0.6};
     private final double[] shootPositions  = {0.68, 0.42, 0.17};
 
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
-    // =======================
-    // TIMERS
-    // =======================
     private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 1000;
 
@@ -66,15 +48,9 @@ public class Teleop extends OpMode {
     private long intakeBurstUntil = 0;
     private static final long INTAKE_BURST_MS = 800;
 
-    // =======================
-    // FLICKER
-    // =======================
     private final double flickerUp = 0.5;
-    private final double flickerDown = 0.75;
+    private final double flickerDown = 0.7;
 
-    // =======================
-    // RAPID FIRE FSM
-    // =======================
     private enum RapidFireState {
         IDLE,
         SPINUP_WAIT,
@@ -90,9 +66,14 @@ public class Teleop extends OpMode {
 
     private boolean lastA = false;
 
-    // =======================
-    // INIT
-    // =======================
+    private double leftIndexPos = 0.0;
+    private double rightIndexPos = 1.0;
+
+    private double leftIndexTarget = 0.0;
+    private double rightIndexTarget = 1.0;
+
+    private static final double INDEX_SPEED = 0.8;
+
     @Override
     public void init() {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
@@ -141,19 +122,13 @@ public class Teleop extends OpMode {
         initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
     }
 
-    // =======================
-    // LOOP
-    // =======================
     @Override
     public void loop() {
         long now = System.currentTimeMillis();
 
-        // =======================
-        // MECANUM DRIVE
-        // =======================
-        double y = -gamepad2.left_stick_y;   // forward
-        double x = gamepad2.left_stick_x;   // strafe
-        double rx = gamepad2.right_stick_x; // rotate
+        double y = -gamepad2.left_stick_y;
+        double x = gamepad2.left_stick_x;
+        double rx = gamepad2.right_stick_x;
 
         double lf = y + x + rx;
         double lr = y - x + rx;
@@ -170,18 +145,12 @@ public class Teleop extends OpMode {
         rightFront.setPower(rf / max);
         rightRear.setPower(rr / max);
 
-        // =======================
-        // INTAKE
-        // =======================
         if (now < intakeBurstUntil) {
             intake.setPower(-1);
         } else {
             intake.setPower(pipeline.ballDetected ? -1 : 0);
         }
 
-        // =======================
-        // COLOR DETECT
-        // =======================
         String detectedColor = detectColor();
         if (!detectedColor.equals("unknown")
                 && now >= ignoreSensorUntil
@@ -194,18 +163,12 @@ public class Teleop extends OpMode {
             ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
-        // =======================
-        // SHOOTER POWER
-        // =======================
         if (rapidFireState != RapidFireState.IDLE) {
             double power = clamp(feedforward(targetVelocity), 0, 1);
             shooterL.setPower(power);
             shooterR.setPower(power);
         }
 
-        // =======================
-        // RAPID FIRE FSM
-        // =======================
         switch (rapidFireState) {
 
             case SPINUP_WAIT:
@@ -239,9 +202,6 @@ public class Teleop extends OpMode {
                 break;
         }
 
-        // =======================
-        // TRIGGER
-        // =======================
         if (gamepad1.a && !lastA && anySlotLoaded()) {
             intakeBurstUntil = now + INTAKE_BURST_MS;
             rapidFireIndex = 0;
@@ -249,6 +209,12 @@ public class Teleop extends OpMode {
             rapidFireState = RapidFireState.SPINUP_WAIT;
         }
         lastA = gamepad1.a;
+
+        leftIndexPos += (leftIndexTarget - leftIndexPos) * INDEX_SPEED;
+        rightIndexPos += (rightIndexTarget - rightIndexPos) * INDEX_SPEED;
+
+        leftIndex.setPosition(leftIndexPos);
+        rightIndex.setPosition(rightIndexPos);
 
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
         telemetry.addData("RapidFire", rapidFireState);
@@ -263,9 +229,6 @@ public class Teleop extends OpMode {
         visionPortal.close();
     }
 
-    // =======================
-    // HELPERS
-    // =======================
     private String detectColor() {
         int r = colorSensor.red();
         int g = colorSensor.green();
@@ -282,14 +245,14 @@ public class Teleop extends OpMode {
 
     private void setSpindexIntakePosition(int index) {
         if (index >= intakePositions.length) index = intakePositions.length - 1;
-        leftIndex.setPosition(intakePositions[index]);
-        rightIndex.setPosition(1.0 - intakePositions[index]);
+        leftIndexTarget = intakePositions[index];
+        rightIndexTarget = 1.0 - intakePositions[index];
     }
 
     private void setSpindexShootPosition(int index) {
         if (index >= shootPositions.length) index = shootPositions.length - 1;
-        leftIndex.setPosition(shootPositions[index]);
-        rightIndex.setPosition(1.0 - shootPositions[index]);
+        leftIndexTarget = shootPositions[index];
+        rightIndexTarget = 1.0 - shootPositions[index];
     }
 
     private boolean anySlotLoaded() {

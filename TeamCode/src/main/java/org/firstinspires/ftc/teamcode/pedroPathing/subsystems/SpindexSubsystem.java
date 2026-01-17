@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 public class SpindexSubsystem {
 
     private final Servo leftIndex, rightIndex;
-    private final double[] intakePositions = {0.34, 0.603, 1.0};
+    private final double[] intakePositions = {0.4, 0.5, 0.6};
     private final double[] shootPositions = {0.73, 0.46, 0.20};
 
     private int currentIndex = 0;
