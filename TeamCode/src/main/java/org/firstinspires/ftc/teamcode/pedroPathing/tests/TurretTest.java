@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.tests;
 
+import static com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
+
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -12,22 +14,21 @@ public class TurretTest extends LinearOpMode {
     private Limelight3A limelight;
     private DcMotor turret;
 
-    // ===== TUNING =====
-    private final double kP = 20;
+    private final double deadzone = 1;
+    private final double kP = 0.03;
+
     private final double maxPower = 0.7;
-    private final double deadzone = 1.0; // degrees
+    private final double minPower = 0.07;
 
     @Override
     public void runOpMode() throws InterruptedException {
 
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        turret.setDirection(REVERSE);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-
-        telemetry.addLine("Starting Limelight...");
-        telemetry.update();
-
+        limelight.pipelineSwitch(0);
         limelight.start();
 
         waitForStart();
@@ -35,43 +36,37 @@ public class TurretTest extends LinearOpMode {
         while (opModeIsActive()) {
 
             double turretPower = 0;
-            LLResult result = null;
+            LLResult result = limelight.getLatestResult();
 
-            // ===== FIND WHICH PIPELINE SEES A VALID TARGET =====
-            for (int pipeline = 0; pipeline <= 2; pipeline++) {
-                limelight.pipelineSwitch(pipeline);
-                sleep(40); // allow pipeline to update
-
-                LLResult tempResult = limelight.getLatestResult();
-                if (tempResult != null && tempResult.isValid()) {
-                    result = tempResult;
-                    break;
-                }
-            }
-
-            // ===== IF WE SEE A TARGET =====
             if (result != null && result.isValid()) {
 
-                double tx = result.getTx(); // horizontal offset
+                double error = result.getTy();
 
-                if (Math.abs(tx) > deadzone) {
-                    turretPower = tx * kP;
-                    turretPower = Math.max(-maxPower,
-                            Math.min(maxPower, turretPower));
+                if (Math.abs(error) > deadzone) {
+
+                    turretPower = kP * error;
+
+                    if (turretPower > 0)
+                        turretPower = Math.max(turretPower, minPower);
+                    else
+                        turretPower = Math.min(turretPower, -minPower);
+
+                    turretPower = Math.max(-maxPower, Math.min(maxPower, turretPower));
+
+                    telemetry.addLine("LOCKED");
                 } else {
-                    turretPower = 0; // LOCKED
+                    turretPower = 0;
                 }
 
-                telemetry.addLine("LOCKED ON TARGET");
-                telemetry.addData("tx", tx);
+                telemetry.addData("Error", error);
 
             } else {
                 turretPower = 0;
-                telemetry.addLine("No target detected");
+                telemetry.addLine("No target");
             }
 
             turret.setPower(turretPower);
-            telemetry.addData("Turret Power", turretPower);
+            telemetry.addData("Power", turretPower);
             telemetry.update();
         }
 

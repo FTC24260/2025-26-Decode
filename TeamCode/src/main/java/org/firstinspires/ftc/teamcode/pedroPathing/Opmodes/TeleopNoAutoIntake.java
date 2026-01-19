@@ -9,63 +9,61 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.Servo;
-import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.vision.VisionPortal;
-import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
-@TeleOp(name = "FullTeleOp")
-public class Teleop extends OpMode {
+@TeleOp(name = "TeleopNoAutoIntake")
+public class TeleopNoAutoIntake extends OpMode {
 
     private DcMotor leftFront, leftRear, rightFront, rightRear;
     private TelemetryManager telemetryM;
 
-    private VisionPortal visionPortal;
-    private ArtifactPipeline pipeline;
     private DcMotor intake;
-
     private DcMotorEx shooterL, shooterR;
 
     public static double kV = 0.0005;
     public static double kS = 0.4;
-    public static double targetVelocity = 100;
+    public static double targetVelocity = 2200;
 
     private ColorSensor colorSensor;
 
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] intakePositions = {0.07, 0.16, 0.25};
-    private final double[] shootPositions  = {0.63, 0.73, 0.827};
+    private final double[] intakePositions = {0.02, 0.11, 0.2};
+    private final double[] shootPositions  = {0.25, 0.34, 0.43};
 
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 150;
+    private static final long SENSOR_IGNORE_MS = 250;
 
     private long initialIgnoreUntil = 0;
     private static final long INITIAL_IGNORE_MS = 400;
 
-    private long intakeBurstUntil = 0;
-    private static final long INTAKE_BURST_MS = 10000;
+    private long postRapidIgnoreUntil = 0;
+    private static final long POST_RAPID_IGNORE_MS = 800;
 
-    private final double flickerUp = 0.5;
+    private long intakeBurstUntil = 0;
+    private static final long INTAKE_BURST_MS = 1000;
+
+    private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
     private enum RapidFireState {
         IDLE,
         SPINUP_WAIT,
-        FLICK_UP
+        FLICK_UP,
+        RESET_WAIT
     }
 
     private RapidFireState rapidFireState = RapidFireState.IDLE;
     private int rapidFireIndex = 0;
     private long rapidFireTimer = 0;
 
-    private static final long SPINUP_DELAY_MS = 2000;
+    private static final long SPINUP_DELAY_MS = 1000;
     private static final long FLICK_UP_MS = 200;
+    private static final long RESET_DELAY_MS = 200;
 
     private boolean lastA = false;
-
     private boolean waitingForBallClear = false;
 
     private static final double SERVO_DEADZONE = 0.004;
@@ -99,12 +97,6 @@ public class Teleop extends OpMode {
         shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterL.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
         shooterR.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
-
-        pipeline = new ArtifactPipeline();
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
-                .addProcessor(pipeline)
-                .build();
 
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
 
@@ -144,7 +136,8 @@ public class Teleop extends OpMode {
         rightFront.setPower(rf / max);
         rightRear.setPower(rr / max);
 
-        intake.setPower((now < intakeBurstUntil || pipeline.ballDetected) ? -1 : 0);
+        boolean intakePressed = gamepad1.left_trigger > 0.1;
+        intake.setPower((intakePressed || now < intakeBurstUntil) ? -1 : 0);
 
         String detectedColor = detectColor();
 
@@ -156,6 +149,7 @@ public class Teleop extends OpMode {
                 && !detectedColor.equals("unknown")
                 && now >= ignoreSensorUntil
                 && now >= initialIgnoreUntil
+                && now >= postRapidIgnoreUntil
                 && currentIndex < 3) {
 
             slots[currentIndex] = detectedColor;
@@ -189,13 +183,19 @@ public class Teleop extends OpMode {
                     rapidFireTimer = now + SPINUP_DELAY_MS;
                     rapidFireState = RapidFireState.SPINUP_WAIT;
                 } else {
-                    rapidFireState = RapidFireState.IDLE;
-                    shooterL.setPower(0);
-                    shooterR.setPower(0);
-                    rapidFireIndex = 0;
-                    currentIndex = 0;
-                    setSpindexIntakePosition(0);
+                    rapidFireTimer = now + RESET_DELAY_MS;
+                    rapidFireState = RapidFireState.RESET_WAIT;
                 }
+            }
+        } else if (rapidFireState == RapidFireState.RESET_WAIT) {
+            if (now >= rapidFireTimer) {
+                shooterL.setPower(0);
+                shooterR.setPower(0);
+                rapidFireIndex = 0;
+                currentIndex = 0;
+                setSpindexIntakePosition(0);
+                postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
+                rapidFireState = RapidFireState.IDLE;
             }
         }
 
@@ -217,7 +217,6 @@ public class Teleop extends OpMode {
         intake.setPower(0);
         shooterL.setPower(0);
         shooterR.setPower(0);
-        visionPortal.close();
     }
 
     private String detectColor() {
