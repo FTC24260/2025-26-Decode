@@ -14,11 +14,13 @@ public class TurretTest extends LinearOpMode {
     private Limelight3A limelight;
     private DcMotor turret;
 
-    private final double deadzone = 1;
-    private final double kP = 0.03;
-
-    private final double maxPower = 0.7;
+    private final double deadzone = 4;
+    private final double kP = 0.05;
+    private final double maxPower = 1;
     private final double minPower = 0.07;
+
+    private final int maxPosition = 430;
+    private final int minPosition = -530;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -37,21 +39,28 @@ public class TurretTest extends LinearOpMode {
 
             double turretPower = 0;
             LLResult result = limelight.getLatestResult();
+            int currentPosition = turret.getCurrentPosition();
 
             if (result != null && result.isValid()) {
-
                 double error = result.getTy();
 
                 if (Math.abs(error) > deadzone) {
-
                     turretPower = kP * error;
 
+                    // Apply minimum power
                     if (turretPower > 0)
                         turretPower = Math.max(turretPower, minPower);
                     else
                         turretPower = Math.min(turretPower, -minPower);
 
+                    // Clip to max motor power
                     turretPower = Math.max(-maxPower, Math.min(maxPower, turretPower));
+
+                    // Prevent going beyond physical bounds
+                    if ((currentPosition >= maxPosition && turretPower > 0) ||
+                            (currentPosition <= minPosition && turretPower < 0)) {
+                        turretPower = 0;
+                    }
 
                     telemetry.addLine("LOCKED");
                 } else {
@@ -67,6 +76,7 @@ public class TurretTest extends LinearOpMode {
 
             turret.setPower(turretPower);
             telemetry.addData("Power", turretPower);
+            telemetry.addData("Position", turret.getCurrentPosition());
             telemetry.update();
         }
 
