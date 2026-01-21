@@ -26,20 +26,16 @@ public class TeleopNoAutoIntake extends OpMode {
     private DcMotor turret;
     private Limelight3A limelight;
 
-    public static double kV = 0.0005;
-    public static double kS = 0.4;
-    public static double targetVelocity = 100;
-
     private ColorSensor colorSensor;
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] intakePositions = {0.02, 0.11, 0.2};
-    private final double[] shootPositions  = {0.25, 0.34, 0.43};
+    private final double[] shootPositions = {0.41, 0.5, 0.59};
+    private final double[] intakePositions  = {0.18, 0.27, 0.36};
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
     private long ignoreSensorUntil = 0;
-    private static final long SENSOR_IGNORE_MS = 250;
+    private static final long SENSOR_IGNORE_MS = 600;
 
     private long initialIgnoreUntil = 0;
     private static final long INITIAL_IGNORE_MS = 400;
@@ -48,9 +44,9 @@ public class TeleopNoAutoIntake extends OpMode {
     private static final long POST_RAPID_IGNORE_MS = 800;
 
     private long intakeBurstUntil = 0;
-    private static final long INTAKE_BURST_MS = 1000;
+    private static final long INTAKE_BURST_MS = 5000;
 
-    private final double flickerUp = 0.45;
+    private final double flickerUp = 0.5;
     private final double flickerDown = 0.7;
 
     private enum RapidFireState { IDLE, SPINUP_WAIT, FLICK_UP, RESET_WAIT }
@@ -58,7 +54,10 @@ public class TeleopNoAutoIntake extends OpMode {
     private int rapidFireIndex = 0;
     private long rapidFireTimer = 0;
 
+    private double currentShooterVelocity = 0;
+
     private boolean lastA = false;
+    private boolean lastB = false;
     private boolean waitingForBallClear = false;
 
     private static final double SERVO_DEADZONE = 0.004;
@@ -73,14 +72,21 @@ public class TeleopNoAutoIntake extends OpMode {
     private final int maxPosition = 430;
     private final int minPosition = -500;
 
-    // Keep track of last known direction (+1 = clockwise, -1 = counterclockwise)
     private int lastTurretDirection = 0;
+
+    // POWER_TABLE: {distance, target shooter velocity}
+    public static final double[][] POWER_TABLE = {
+            {12, 0.8},
+            {24, 0.57},
+            {36, 0.66},
+            {48, 0.73},
+            {60, 0.79}
+    };
 
     @Override
     public void init() {
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
-        // Drive motors
         leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
         leftRear   = hardwareMap.get(DcMotor.class, "leftRear");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
@@ -94,10 +100,8 @@ public class TeleopNoAutoIntake extends OpMode {
         rightFront.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
         rightRear.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
 
-        // Intake
         intake = hardwareMap.get(DcMotor.class, "intake");
 
-        // Shooter
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
         shooterR.setDirection(DcMotor.Direction.REVERSE);
@@ -106,7 +110,6 @@ public class TeleopNoAutoIntake extends OpMode {
         shooterL.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
         shooterR.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
 
-        // Color sensor & spindex
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
@@ -114,12 +117,10 @@ public class TeleopNoAutoIntake extends OpMode {
         setSpindexIntakePosition(0);
         flicker.setPosition(flickerDown);
 
-        // Turret
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         turret.setDirection(REVERSE);
 
-        // Limelight
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
@@ -159,10 +160,7 @@ public class TeleopNoAutoIntake extends OpMode {
         intake.setPower((intakePressed || now < intakeBurstUntil) ? -1 : 0);
 
         String detectedColor = detectColor();
-
-        if (detectedColor.equals("unknown")) {
-            waitingForBallClear = false;
-        }
+        if (detectedColor.equals("unknown")) waitingForBallClear = false;
 
         if (!waitingForBallClear
                 && !detectedColor.equals("unknown")
@@ -170,7 +168,6 @@ public class TeleopNoAutoIntake extends OpMode {
                 && now >= initialIgnoreUntil
                 && now >= postRapidIgnoreUntil
                 && currentIndex < 3) {
-
             slots[currentIndex] = detectedColor;
             currentIndex++;
             setSpindexIntakePosition(currentIndex);
@@ -178,83 +175,87 @@ public class TeleopNoAutoIntake extends OpMode {
             waitingForBallClear = true;
         }
 
-        // ---------------- Shooter ----------------
-        if (rapidFireState != RapidFireState.IDLE) {
-            double power = clamp(feedforward(targetVelocity), 0, 1);
-            shooterL.setPower(power);
-            shooterR.setPower(power);
-        }
-
-        if (rapidFireState == RapidFireState.SPINUP_WAIT) {
-            setSpindexShootPosition(rapidFireIndex);
-            if (now >= rapidFireTimer) {
-                flicker.setPosition(flickerUp);
-                rapidFireTimer = now + 200; // FLICK_UP_MS
-                rapidFireState = RapidFireState.FLICK_UP;
-            }
-        } else if (rapidFireState == RapidFireState.FLICK_UP) {
-            if (now >= rapidFireTimer) {
-                flicker.setPosition(flickerDown);
-                slots[rapidFireIndex] = "unknown";
-
-                if (rapidFireIndex < 2 && anySlotLoaded()) {
-                    rapidFireIndex++;
-                    intakeBurstUntil = now + INTAKE_BURST_MS;
-                    rapidFireTimer = now + 1000; // SPINUP_DELAY_MS
-                    rapidFireState = RapidFireState.SPINUP_WAIT;
-                } else {
-                    rapidFireTimer = now + 200; // RESET_DELAY_MS
-                    rapidFireState = RapidFireState.RESET_WAIT;
-                }
-            }
-        } else if (rapidFireState == RapidFireState.RESET_WAIT) {
-            if (now >= rapidFireTimer) {
-                shooterL.setPower(0);
-                shooterR.setPower(0);
+        // ---------------- Rapid Fire Trigger ----------------
+        if (rapidFireState == RapidFireState.IDLE && anySlotLoaded()) {
+            if (gamepad1.a && !lastA) {
+                currentShooterVelocity = 100;
+                rapidFireTimer = now + 800;
                 rapidFireIndex = 0;
-                currentIndex = 0;
-                setSpindexIntakePosition(0);
-                postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
-                rapidFireState = RapidFireState.IDLE;
+                rapidFireState = RapidFireState.SPINUP_WAIT;
+            } else if (gamepad1.b && !lastB) {
+                currentShooterVelocity = 1900;
+                rapidFireTimer = now + 1300;
+                rapidFireIndex = 0;
+                rapidFireState = RapidFireState.SPINUP_WAIT;
             }
-        }
-
-        if (gamepad1.a && !lastA && anySlotLoaded()) {
-            intakeBurstUntil = now + INTAKE_BURST_MS;
-            rapidFireIndex = 0;
-            rapidFireTimer = now + 1000; // SPINUP_DELAY_MS
-            rapidFireState = RapidFireState.SPINUP_WAIT;
         }
         lastA = gamepad1.a;
+        lastB = gamepad1.b;
 
-        // ---------------- Turret Auto-Tracking with prediction ----------------
+        // ---------------- Shooter Rapid Fire Logic ----------------
+        if (rapidFireState != RapidFireState.IDLE) {
+            double power = clamp(feedforward(currentShooterVelocity), 0, 1);
+            shooterL.setPower(power);
+            shooterR.setPower(power);
+
+            if (rapidFireState == RapidFireState.SPINUP_WAIT) {
+                setSpindexShootPosition(rapidFireIndex);
+                if (now >= rapidFireTimer) {
+                    flicker.setPosition(flickerUp);
+                    rapidFireTimer = now + 200; // flick up duration
+                    rapidFireState = RapidFireState.FLICK_UP;
+                }
+            } else if (rapidFireState == RapidFireState.FLICK_UP) {
+                if (now >= rapidFireTimer) {
+                    flicker.setPosition(flickerDown);
+                    slots[rapidFireIndex] = "unknown";
+
+                    if (rapidFireIndex < 2 && anySlotLoaded()) {
+                        rapidFireIndex++;
+                        intakeBurstUntil = now + INTAKE_BURST_MS;
+                        rapidFireTimer = now + 1200; // spinup for next ball
+                        rapidFireState = RapidFireState.SPINUP_WAIT;
+                    } else {
+                        rapidFireTimer = now + 200;
+                        rapidFireState = RapidFireState.RESET_WAIT;
+                    }
+                }
+            } else if (rapidFireState == RapidFireState.RESET_WAIT) {
+                if (now >= rapidFireTimer) {
+                    shooterL.setPower(0);
+                    shooterR.setPower(0);
+                    rapidFireIndex = 0;
+                    currentIndex = 0;
+                    setSpindexIntakePosition(0);
+                    postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
+                    rapidFireState = RapidFireState.IDLE;
+                }
+            }
+        }
+
+        // ---------------- Turret Auto-Tracking ----------------
         int currentPos = turret.getCurrentPosition();
         double turretPower = 0;
-        LLResult result = limelight.getLatestResult();
 
-        if (result != null && result.isValid()) {
-            double error = result.getTy();
+        LLResult limelightResult = limelight.getLatestResult();
+        if (limelightResult != null && limelightResult.isValid()) {
+            double yOffset = 3.0; // aim slightly lower
+            double error = limelightResult.getTy() + yOffset;
 
             if (Math.abs(error) > deadzone) {
                 turretPower = kP * error;
-
+                turretPower = Math.max(-maxPower, Math.min(maxPower, turretPower));
                 if (turretPower > 0) turretPower = Math.max(turretPower, minPower);
                 else turretPower = Math.min(turretPower, -minPower);
-
-                turretPower = Math.max(-maxPower, Math.min(maxPower, turretPower));
-
-                // Update last known direction
                 lastTurretDirection = (turretPower > 0) ? 1 : -1;
             } else {
                 turretPower = 0;
                 lastTurretDirection = 0;
             }
         } else {
-            // Target lost: keep turning in last known direction
-            turretPower = minPower * lastTurretDirection;
+            turretPower = minPower * lastTurretDirection; // hold last direction
         }
 
-        // Respect physical bounds
         if ((currentPos >= maxPosition && turretPower > 0) ||
                 (currentPos <= minPosition && turretPower < 0)) {
             turretPower = 0;
@@ -266,7 +267,8 @@ public class TeleopNoAutoIntake extends OpMode {
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
         telemetry.addData("RapidFire", rapidFireState);
         telemetry.addData("Turret Power", turretPower);
-        telemetry.addData("Turret Pos", turret.getCurrentPosition());
+        telemetry.addData("Turret Pos", currentPos);
+        telemetry.addData("Shooter Vel", currentShooterVelocity);
         telemetry.update();
     }
 
@@ -284,13 +286,10 @@ public class TeleopNoAutoIntake extends OpMode {
         int r = colorSensor.red();
         int g = colorSensor.green();
         int b = colorSensor.blue();
-
         if (g > 1.2 * r && g > 1.2 * b && g > 20) return "green";
-
         int maxRB = Math.max(r, b);
         int minRB = Math.min(r, b);
         if (maxRB > 40 && minRB >= 0.5 * maxRB && g < 0.7 * maxRB) return "purple";
-
         return "unknown";
     }
 
@@ -307,12 +306,10 @@ public class TeleopNoAutoIntake extends OpMode {
     private void applyServoDeadzone(double pos) {
         double left = clamp(pos, 0.0, 1.0);
         double right = left;
-
         if (Math.abs(left - lastLeftIndexPos) > SERVO_DEADZONE) {
             leftIndex.setPosition(left);
             lastLeftIndexPos = left;
         }
-
         if (Math.abs(right - lastRightIndexPos) > SERVO_DEADZONE) {
             rightIndex.setPosition(right);
             lastRightIndexPos = right;
@@ -320,16 +317,26 @@ public class TeleopNoAutoIntake extends OpMode {
     }
 
     private boolean anySlotLoaded() {
-        return !slots[0].equals("unknown")
-                || !slots[1].equals("unknown")
-                || !slots[2].equals("unknown");
+        return !slots[0].equals("unknown") || !slots[1].equals("unknown") || !slots[2].equals("unknown");
     }
 
     private double feedforward(double targetVel) {
-        return kS * Math.signum(targetVel) + kV * targetVel;
+        return 0.4 * Math.signum(targetVel) + 0.01 * targetVel;
     }
 
     private double clamp(double v, double min, double max) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    private double getVelocityFromDistance(double distance) {
+        for (int i = 0; i < POWER_TABLE.length - 1; i++) {
+            if (distance >= POWER_TABLE[i][0] && distance <= POWER_TABLE[i + 1][0]) {
+                double x0 = POWER_TABLE[i][0], y0 = POWER_TABLE[i][1];
+                double x1 = POWER_TABLE[i + 1][0], y1 = POWER_TABLE[i + 1][1];
+                return y0 + (distance - x0) / (x1 - x0) * (y1 - y0);
+            }
+        }
+        if (distance < POWER_TABLE[0][0]) return POWER_TABLE[0][1];
+        else return POWER_TABLE[POWER_TABLE.length - 1][1];
     }
 }
