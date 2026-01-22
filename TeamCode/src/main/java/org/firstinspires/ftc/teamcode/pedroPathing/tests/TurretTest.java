@@ -13,8 +13,8 @@ public class TurretTest extends OpMode {
     private Follower follower;
     private DcMotor turret;
 
-    private final int TURRET_MAX = 430;
-    private final int TURRET_MIN = -530;
+    private final int TURRET_MAX = 400;
+    private final int TURRET_MIN = -400;
     private final double MAX_POWER = 0.6; // small power to hold position
     private final double Kp = 0.02;
 
