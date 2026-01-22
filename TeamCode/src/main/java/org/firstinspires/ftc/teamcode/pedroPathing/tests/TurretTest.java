@@ -7,68 +7,75 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.follower.Follower;
 
-@TeleOp(name = "Turret Hold Forward Pinpoint", group = "Pedro Pathing")
+@TeleOp(name = "Turret Aim Goal", group = "Pedro Pathing")
 public class TurretTest extends OpMode {
 
     private Follower follower;
     private DcMotor turret;
 
-    private final int TURRET_MAX = 400;
-    private final int TURRET_MIN = -400;
-    private final double MAX_POWER = 0.6; // small power to hold position
+    private final int TURRET_MAX = 430;
+    private final int TURRET_MIN = -530;
+    private final double MAX_POWER = 0.6;   // normal power
+    private final double WRAP_POWER = 0.4;  // power when wrapping
     private final double Kp = 0.02;
 
-    private int turretZero = 0;       // tick 0 = forward
-    private double headingZero = 0;   // robot heading at init
+    private final double goalX = 0;
+    private final double goalY = 144;
+
+    private int turretZero = 0;
 
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
-        // Initialize robot “forward” as 90° in radians
-        follower.setStartingPose(new Pose(0, 0, 0));
+        // Robot starts at (0,72) facing 90° (Math.PI/2)
+        follower.setStartingPose(new Pose(72, 0, Math.PI / 2));
 
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setDirection(DcMotor.Direction.REVERSE);
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        // Treat current turret position as tick 0 (forward)
-        turretZero = turret.getCurrentPosition();
-        headingZero = follower.getPoseTracker().getPose().getHeading();
+        turretZero = turret.getCurrentPosition(); // current pos = tick 0
     }
 
     @Override
     public void loop() {
         follower.update();
 
-        double currentHeading = follower.getPoseTracker().getPose().getHeading();
+        Pose robotPose = follower.getPoseTracker().getPose();
+        double dx = goalX - robotPose.getX();
+        double dy = goalY - robotPose.getY();
 
-        // Compute how much the robot has rotated since init
-        double deltaHeading = currentHeading - headingZero;
+        // Desired turret angle in robot frame
+        double targetAngle = Math.atan2(dy, dx) - robotPose.getHeading();
 
-        // Convert deltaHeading to turret ticks (negate rotation)
+        // Convert to turret ticks
         double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
-        int turretOffset = (int)(-deltaHeading * ticksPerRadian);
+        int targetTicks = turretZero + (int)(targetAngle * ticksPerRadian);
 
-        // Wrap turret offset if needed
-        if (turretOffset > TURRET_MAX) turretOffset = TURRET_MIN + (turretOffset - TURRET_MAX - 1);
-        if (turretOffset < TURRET_MIN) turretOffset = TURRET_MAX - (TURRET_MIN - turretOffset - 1);
+        // Clamp to min/max
+        int error;
+        double power;
 
-        // Target = tick 0 + offset
-        int target = turretZero + turretOffset;
-
-        // Proportional control
-        int error = target - turret.getCurrentPosition();
-        double power = Kp * error;
-        power = Math.max(-MAX_POWER, Math.min(MAX_POWER, power));
+        if (targetTicks > TURRET_MAX) {
+            error = TURRET_MAX - turret.getCurrentPosition();
+            power = WRAP_POWER;
+        } else if (targetTicks < TURRET_MIN) {
+            error = TURRET_MIN - turret.getCurrentPosition();
+            power = WRAP_POWER;
+        } else {
+            error = targetTicks - turret.getCurrentPosition();
+            power = Kp * error;
+            power = Math.max(-MAX_POWER, Math.min(MAX_POWER, power));
+        }
 
         turret.setPower(power);
 
-        telemetry.addData("Robot Heading (deg)", Math.toDegrees(currentHeading));
+        telemetry.addData("Robot Pose", "X=%.1f Y=%.1f Heading=%.1f", robotPose.getX(), robotPose.getY(), Math.toDegrees(robotPose.getHeading()));
         telemetry.addData("Turret Position", turret.getCurrentPosition());
-        telemetry.addData("Turret Target", target);
-        telemetry.addData("Turret Error", error);
-        telemetry.addData("Turret Power", power);
+        telemetry.addData("Target Ticks", targetTicks);
+        telemetry.addData("Error", error);
+        telemetry.addData("Power", power);
         telemetry.update();
     }
 }
