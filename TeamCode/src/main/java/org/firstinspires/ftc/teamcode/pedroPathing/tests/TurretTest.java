@@ -1,85 +1,74 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.tests;
 
-import static com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
-
-import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.follower.Follower;
 
-@TeleOp(name = "Turret Test", group = "Vision")
-public class TurretTest extends LinearOpMode {
+@TeleOp(name = "Turret Hold Forward Pinpoint", group = "Pedro Pathing")
+public class TurretTest extends OpMode {
 
-    private Limelight3A limelight;
+    private Follower follower;
     private DcMotor turret;
 
-    private final double deadzone = 4;
-    private final double kP = 0.05;
-    private final double maxPower = 1;
-    private final double minPower = 0.07;
+    private final int TURRET_MAX = 430;
+    private final int TURRET_MIN = -530;
+    private final double MAX_POWER = 0.6; // small power to hold position
+    private final double Kp = 0.02;
 
-    private final int maxPosition = 430;
-    private final int minPosition = -530;
+    private int turretZero = 0;       // tick 0 = forward
+    private double headingZero = 0;   // robot heading at init
 
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void init() {
+        follower = Constants.createFollower(hardwareMap);
+        // Initialize robot “forward” as 90° in radians
+        follower.setStartingPose(new Pose(0, 0, 0));
 
         turret = hardwareMap.get(DcMotor.class, "turret");
-        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        turret.setDirection(REVERSE);
+        turret.setDirection(DcMotor.Direction.REVERSE);
+        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);
-        limelight.start();
+        // Treat current turret position as tick 0 (forward)
+        turretZero = turret.getCurrentPosition();
+        headingZero = follower.getPoseTracker().getPose().getHeading();
+    }
 
-        waitForStart();
+    @Override
+    public void loop() {
+        follower.update();
 
-        while (opModeIsActive()) {
+        double currentHeading = follower.getPoseTracker().getPose().getHeading();
 
-            double turretPower = 0;
-            LLResult result = limelight.getLatestResult();
-            int currentPosition = turret.getCurrentPosition();
+        // Compute how much the robot has rotated since init
+        double deltaHeading = currentHeading - headingZero;
 
-            if (result != null && result.isValid()) {
-                double error = result.getTy();
+        // Convert deltaHeading to turret ticks (negate rotation)
+        double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
+        int turretOffset = (int)(-deltaHeading * ticksPerRadian);
 
-                if (Math.abs(error) > deadzone) {
-                    turretPower = kP * error;
+        // Wrap turret offset if needed
+        if (turretOffset > TURRET_MAX) turretOffset = TURRET_MIN + (turretOffset - TURRET_MAX - 1);
+        if (turretOffset < TURRET_MIN) turretOffset = TURRET_MAX - (TURRET_MIN - turretOffset - 1);
 
-                    // Apply minimum power
-                    if (turretPower > 0)
-                        turretPower = Math.max(turretPower, minPower);
-                    else
-                        turretPower = Math.min(turretPower, -minPower);
+        // Target = tick 0 + offset
+        int target = turretZero + turretOffset;
 
-                    // Clip to max motor power
-                    turretPower = Math.max(-maxPower, Math.min(maxPower, turretPower));
+        // Proportional control
+        int error = target - turret.getCurrentPosition();
+        double power = Kp * error;
+        power = Math.max(-MAX_POWER, Math.min(MAX_POWER, power));
 
-                    // Prevent going beyond physical bounds
-                    if ((currentPosition >= maxPosition && turretPower > 0) ||
-                            (currentPosition <= minPosition && turretPower < 0)) {
-                        turretPower = 0;
-                    }
+        turret.setPower(power);
 
-                    telemetry.addLine("LOCKED");
-                } else {
-                    turretPower = 0;
-                }
-
-                telemetry.addData("Error", error);
-
-            } else {
-                turretPower = 0;
-                telemetry.addLine("No target");
-            }
-
-            turret.setPower(turretPower);
-            telemetry.addData("Power", turretPower);
-            telemetry.addData("Position", turret.getCurrentPosition());
-            telemetry.update();
-        }
-
-        limelight.stop();
+        telemetry.addData("Robot Heading (deg)", Math.toDegrees(currentHeading));
+        telemetry.addData("Turret Position", turret.getCurrentPosition());
+        telemetry.addData("Turret Target", target);
+        telemetry.addData("Turret Error", error);
+        telemetry.addData("Turret Power", power);
+        telemetry.update();
     }
 }
