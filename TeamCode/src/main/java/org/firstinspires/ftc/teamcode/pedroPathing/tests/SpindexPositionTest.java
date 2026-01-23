@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
-//@TeleOp(name = "Spindex Position Test")
+@TeleOp(name = "Spindex Position Test")
 public class SpindexPositionTest extends OpMode {
 
     private Servo leftIndex, rightIndex;
