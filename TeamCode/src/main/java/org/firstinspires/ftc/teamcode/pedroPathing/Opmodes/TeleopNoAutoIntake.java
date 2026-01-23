@@ -13,8 +13,11 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.follower.Follower;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "TeleopWithTurretAuto")
+@TeleOp(name = "TeleopWithTurretGoalTrack")
 public class TeleopNoAutoIntake extends OpMode {
 
     private DcMotor leftFront, leftRear, rightFront, rightRear;
@@ -29,8 +32,8 @@ public class TeleopNoAutoIntake extends OpMode {
     private ColorSensor colorSensor;
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] shootPositions = {0.41, 0.5, 0.59};
-    private final double[] intakePositions  = {0.18, 0.27, 0.36};
+    private final double[] shootPositions = {0.31, 0.4, 0.49};
+    private final double[] intakePositions  = {0.084, 0.174, 0.264};
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
@@ -64,15 +67,25 @@ public class TeleopNoAutoIntake extends OpMode {
     private double lastLeftIndexPos = -1;
     private double lastRightIndexPos = -1;
 
-    // Turret auto-tracking constants
+    // Turret auto-tracking constants (limelight)
     private final double deadzone = 1;
     private final double kP = 0.03;
     private final double maxPower = 1;
     private final double minPower = 0.07;
     private final int maxPosition = 430;
     private final int minPosition = -500;
-
     private int lastTurretDirection = 0;
+
+    // Goal tracking constants (TurretTest)
+    private Follower follower;
+    private final int TURRET_MAX = 430;
+    private final int TURRET_MIN = -530;
+    private final double MAX_POWER_GOAL = 0.6;
+    private final double WRAP_POWER = 0.4;
+    private final double Kp_GOAL = 0.021;
+    private final double goalX = 0;
+    private final double goalY = 144;
+    private int turretZero = 0;
 
     // POWER_TABLE: {distance, target shooter velocity}
     public static final double[][] POWER_TABLE = {
@@ -124,6 +137,14 @@ public class TeleopNoAutoIntake extends OpMode {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
+
+        // Follower for goal tracking
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(new Pose(72, 0, Math.PI / 2));
+
+        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        turretZero = turret.getCurrentPosition();
     }
 
     @Override
@@ -233,32 +254,29 @@ public class TeleopNoAutoIntake extends OpMode {
             }
         }
 
-        // ---------------- Turret Auto-Tracking ----------------
-        int currentPos = turret.getCurrentPosition();
-        double turretPower = 0;
+        // ---------------- Turret Goal Tracking ----------------
+        follower.update();
+        Pose robotPose = follower.getPoseTracker().getPose();
+        double dx = goalX - robotPose.getX();
+        double dy = goalY - robotPose.getY();
+        double targetAngle = Math.atan2(dy, dx) - robotPose.getHeading();
 
-        LLResult limelightResult = limelight.getLatestResult();
-        if (limelightResult != null && limelightResult.isValid()) {
-            double yOffset = 3.0; // aim slightly lower
-            double error = limelightResult.getTy() + yOffset;
+        double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
+        int targetTicks = turretZero + (int)(targetAngle * ticksPerRadian);
 
-            if (Math.abs(error) > deadzone) {
-                turretPower = kP * error;
-                turretPower = Math.max(-maxPower, Math.min(maxPower, turretPower));
-                if (turretPower > 0) turretPower = Math.max(turretPower, minPower);
-                else turretPower = Math.min(turretPower, -minPower);
-                lastTurretDirection = (turretPower > 0) ? 1 : -1;
-            } else {
-                turretPower = 0;
-                lastTurretDirection = 0;
-            }
+        int error;
+        double turretPower;
+
+        if (targetTicks > TURRET_MAX) {
+            error = TURRET_MAX - turret.getCurrentPosition();
+            turretPower = WRAP_POWER;
+        } else if (targetTicks < TURRET_MIN) {
+            error = TURRET_MIN - turret.getCurrentPosition();
+            turretPower = WRAP_POWER;
         } else {
-            turretPower = minPower * lastTurretDirection; // hold last direction
-        }
-
-        if ((currentPos >= maxPosition && turretPower > 0) ||
-                (currentPos <= minPosition && turretPower < 0)) {
-            turretPower = 0;
+            error = targetTicks - turret.getCurrentPosition();
+            turretPower = Kp_GOAL * error;
+            turretPower = Math.max(-MAX_POWER_GOAL, Math.min(MAX_POWER_GOAL, turretPower));
         }
 
         turret.setPower(turretPower);
@@ -267,8 +285,11 @@ public class TeleopNoAutoIntake extends OpMode {
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
         telemetry.addData("RapidFire", rapidFireState);
         telemetry.addData("Turret Power", turretPower);
-        telemetry.addData("Turret Pos", currentPos);
+        telemetry.addData("Turret Pos", turret.getCurrentPosition());
         telemetry.addData("Shooter Vel", currentShooterVelocity);
+        telemetry.addData("Robot Pose", "X=%.1f Y=%.1f Heading=%.1f", robotPose.getX(), robotPose.getY(), Math.toDegrees(robotPose.getHeading()));
+        telemetry.addData("Target Ticks", targetTicks);
+        telemetry.addData("Error", error);
         telemetry.update();
     }
 

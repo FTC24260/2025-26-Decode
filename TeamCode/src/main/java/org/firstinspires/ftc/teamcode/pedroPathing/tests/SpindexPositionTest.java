@@ -11,7 +11,7 @@ public class SpindexPositionTest extends OpMode {
     private Servo leftIndex, rightIndex;
 
     // Spindex positions (RB / LB)
-    private final double[] positions = {0.25, 0.34, 0.43};
+    private final double[] positions = {0.3, 0.4, 0.31};
     private int currentIndex = 0;
 
     // A-button toggle positions

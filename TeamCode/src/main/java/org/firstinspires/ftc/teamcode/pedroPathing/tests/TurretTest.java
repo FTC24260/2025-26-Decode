@@ -15,9 +15,9 @@ public class TurretTest extends OpMode {
 
     private final int TURRET_MAX = 430;
     private final int TURRET_MIN = -530;
-    private final double MAX_POWER = 0.6;   // normal power
-    private final double WRAP_POWER = 0.4;  // power when wrapping
-    private final double Kp = 0.02;
+    private final double MAX_POWER = 0.6;
+    private final double WRAP_POWER = 0.4;
+    private final double Kp = 0.021;
 
     private final double goalX = 0;
     private final double goalY = 144;
@@ -27,7 +27,6 @@ public class TurretTest extends OpMode {
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
-        // Robot starts at (0,72) facing 90° (Math.PI/2)
         follower.setStartingPose(new Pose(72, 0, Math.PI / 2));
 
         turret = hardwareMap.get(DcMotor.class, "turret");
@@ -35,7 +34,7 @@ public class TurretTest extends OpMode {
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-        turretZero = turret.getCurrentPosition(); // current pos = tick 0
+        turretZero = turret.getCurrentPosition();
     }
 
     @Override
