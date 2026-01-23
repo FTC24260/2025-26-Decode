@@ -78,8 +78,8 @@ public class TeleopNoAutoIntake extends OpMode {
 
     // Goal tracking constants (TurretTest)
     private Follower follower;
-    private final int TURRET_MAX = 430;
-    private final int TURRET_MIN = -530;
+    private final int TURRET_MAX = 550;
+    private final int TURRET_MIN = -470;
     private final double MAX_POWER_GOAL = 0.6;
     private final double WRAP_POWER = 0.4;
     private final double Kp_GOAL = 0.021;
@@ -254,7 +254,7 @@ public class TeleopNoAutoIntake extends OpMode {
             }
         }
 
-        // ---------------- Turret Goal Tracking ----------------
+        // ---------------- Turret Goal Tracking with Wrap ----------------
         follower.update();
         Pose robotPose = follower.getPoseTracker().getPose();
         double dx = goalX - robotPose.getX();
@@ -264,19 +264,19 @@ public class TeleopNoAutoIntake extends OpMode {
         double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
         int targetTicks = turretZero + (int)(targetAngle * ticksPerRadian);
 
-        int error;
-        double turretPower;
+        int currentPos = turret.getCurrentPosition();
+        int delta = targetTicks - currentPos;
 
-        if (targetTicks > TURRET_MAX) {
-            error = TURRET_MAX - turret.getCurrentPosition();
-            turretPower = WRAP_POWER;
-        } else if (targetTicks < TURRET_MIN) {
-            error = TURRET_MIN - turret.getCurrentPosition();
-            turretPower = WRAP_POWER;
-        } else {
-            error = targetTicks - turret.getCurrentPosition();
-            turretPower = Kp_GOAL * error;
-            turretPower = Math.max(-MAX_POWER_GOAL, Math.min(MAX_POWER_GOAL, turretPower));
+        int maxRange = TURRET_MAX - TURRET_MIN;
+        while (delta > maxRange / 2) delta -= maxRange;
+        while (delta < -maxRange / 2) delta += maxRange;
+
+        double turretPower = Kp_GOAL * delta;
+        turretPower = Math.max(-MAX_POWER_GOAL, Math.min(MAX_POWER_GOAL, turretPower));
+
+        if ((currentPos >= TURRET_MAX && turretPower > 0) ||
+                (currentPos <= TURRET_MIN && turretPower < 0)) {
+            turretPower = 0;
         }
 
         turret.setPower(turretPower);
@@ -289,7 +289,7 @@ public class TeleopNoAutoIntake extends OpMode {
         telemetry.addData("Shooter Vel", currentShooterVelocity);
         telemetry.addData("Robot Pose", "X=%.1f Y=%.1f Heading=%.1f", robotPose.getX(), robotPose.getY(), Math.toDegrees(robotPose.getHeading()));
         telemetry.addData("Target Ticks", targetTicks);
-        telemetry.addData("Error", error);
+        telemetry.addData("Error", delta);
         telemetry.update();
     }
 

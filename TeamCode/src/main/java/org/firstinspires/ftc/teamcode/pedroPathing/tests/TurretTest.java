@@ -50,22 +50,22 @@ public class TurretTest extends OpMode {
 
         // Convert to turret ticks
         double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
-        int targetTicks = turretZero + (int)(targetAngle * ticksPerRadian);
+        int targetTicks = turretZero + (int) (targetAngle * ticksPerRadian);
 
-        // Clamp to min/max
-        int error;
-        double power;
+        // Clamp targetTicks within physical limits
+        targetTicks = Math.max(TURRET_MIN, Math.min(TURRET_MAX, targetTicks));
 
-        if (targetTicks > TURRET_MAX) {
-            error = TURRET_MAX - turret.getCurrentPosition();
-            power = WRAP_POWER;
-        } else if (targetTicks < TURRET_MIN) {
-            error = TURRET_MIN - turret.getCurrentPosition();
-            power = WRAP_POWER;
-        } else {
-            error = targetTicks - turret.getCurrentPosition();
-            power = Kp * error;
-            power = Math.max(-MAX_POWER, Math.min(MAX_POWER, power));
+        // Compute error and proportional power
+        int error = targetTicks - turret.getCurrentPosition();
+        double power = Kp * error;
+
+        // Clamp power
+        power = Math.max(-MAX_POWER, Math.min(MAX_POWER, power));
+
+        // Stop turret if at physical limits
+        if ((turret.getCurrentPosition() >= TURRET_MAX && power > 0) ||
+                (turret.getCurrentPosition() <= TURRET_MIN && power < 0)) {
+            power = 0;
         }
 
         turret.setPower(power);
