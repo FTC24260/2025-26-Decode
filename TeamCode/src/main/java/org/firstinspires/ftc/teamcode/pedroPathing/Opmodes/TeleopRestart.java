@@ -16,7 +16,7 @@ import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Vision.ArtifactPipeline;
 
-@TeleOp(name = "FullTeleOp Rapid Fire")
+//@TeleOp(name = "FullTeleOp Rapid Fire")
 public class TeleopRestart extends OpMode {
 
     // --- Follower / Drive ---

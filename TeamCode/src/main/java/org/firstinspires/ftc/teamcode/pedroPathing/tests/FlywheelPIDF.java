@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
-@TeleOp(name = "Shooter PIDF Tuner")
+//@TeleOp(name = "Shooter PIDF Tuner")
 public class FlywheelPIDF extends OpMode {
 
     // Shooter motors

@@ -4,7 +4,6 @@ import static com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
 
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
-import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -17,8 +16,8 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.follower.Follower;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "TeleopWithTurretGoalTrack")
-public class TeleopNoAutoIntake extends OpMode {
+@TeleOp(name = "Teleop")
+public class Teleop2 extends OpMode {
 
     private DcMotor leftFront, leftRear, rightFront, rightRear;
     private TelemetryManager telemetryM;
@@ -161,6 +160,12 @@ public class TeleopNoAutoIntake extends OpMode {
         double x = gamepad2.left_stick_x;
         double rx = gamepad2.right_stick_x;
 
+// Apply deadzone so very small joystick values don't prevent braking
+        double deadzone = 0.05;
+        if (Math.abs(y) < deadzone) y = 0;
+        if (Math.abs(x) < deadzone) x = 0;
+        if (Math.abs(rx) < deadzone) rx = 0;
+
         double lf = y + x + rx;
         double lr = y - x + rx;
         double rf = y - x - rx;
@@ -176,25 +181,6 @@ public class TeleopNoAutoIntake extends OpMode {
         rightFront.setPower(rf / max);
         rightRear.setPower(rr / max);
 
-        // ---------------- Intake ----------------
-        boolean intakePressed = gamepad1.left_trigger > 0.1;
-        intake.setPower((intakePressed || now < intakeBurstUntil) ? -1 : 0);
-
-        String detectedColor = detectColor();
-        if (detectedColor.equals("unknown")) waitingForBallClear = false;
-
-        if (!waitingForBallClear
-                && !detectedColor.equals("unknown")
-                && now >= ignoreSensorUntil
-                && now >= initialIgnoreUntil
-                && now >= postRapidIgnoreUntil
-                && currentIndex < 3) {
-            slots[currentIndex] = detectedColor;
-            currentIndex++;
-            setSpindexIntakePosition(currentIndex);
-            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
-            waitingForBallClear = true;
-        }
 
         // ---------------- Rapid Fire Trigger ----------------
         if (rapidFireState == RapidFireState.IDLE && anySlotLoaded()) {
