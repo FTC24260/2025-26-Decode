@@ -37,9 +37,9 @@ public class TeleopNoAutoIntake extends OpMode {
     private int currentIndex = 0;
 
     private final double[] RAPID_FIRE_MAX_POWERS = {
-            0.28,
-            0.41,
-            0.47
+            0.29,
+            0.43,
+            0.49
     };
 
     private long ignoreSensorUntil = 0;
@@ -129,7 +129,7 @@ public class TeleopNoAutoIntake extends OpMode {
         limelight.start();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(70, 81, Math.PI / 2));
+        follower.setStartingPose(new Pose(68, 81, Math.PI / 2));
 
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
