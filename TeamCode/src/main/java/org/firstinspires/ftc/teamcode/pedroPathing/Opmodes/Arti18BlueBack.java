@@ -11,10 +11,8 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants.RobotConstants;
 
-
-@Autonomous(name = "Arti 18 Red Back", group = "Autonomous")
+@Autonomous(name = "Pedro Pathing Autonomous", group = "Autonomous")
 @Configurable // Panels
 public class Arti18BlueBack extends OpMode {
 
@@ -51,139 +49,120 @@ public class Arti18BlueBack extends OpMode {
 
     public static class Paths {
 
-        public PathChain IntakePose2;
-        public PathChain ScoreSmallTriangle6;
-        public PathChain IntakePose1;
-        public PathChain ScoreSmallTriangle9;
-        public PathChain IntakePose3;
-        public PathChain ScoreSmallTriangle12;
-        public PathChain IntakeFromRamp;
-        public PathChain ScoreSmallTriangle15;
-        public PathChain ScoreSmallTriangle18;
-        public PathChain AlmostGate;
+        public PathChain ShootPreload3;
+        public PathChain Pickup2;
+        public PathChain Shoot6;
+        public PathChain PickupGate1;
+        public PathChain Shoot9;
+        public PathChain PickupGate2;
+        public PathChain Shoot12;
+        public PathChain PickupGate3;
+        public PathChain Shoot15;
+        public PathChain Pickup1;
+        public PathChain SHoot18;
 
         public Paths(Follower follower) {
-            IntakePose2 = follower
+            ShootPreload3 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierCurve(
-                                    new Pose(60.000, 9.000),
-                                    new Pose(52.000, 62.000),
-                                    new Pose(24.000, 60.000)
-                            )
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180))
-                    .build();
-
-            ScoreSmallTriangle6 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(24.000, 60.000), new Pose(72.000, 24.000))
+                            new BezierLine(new Pose(21.000, 121.800), new Pose(55.000, 75.000))
                     )
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(180),
-                            Math.toRadians(58.7)
-                    )
-                    .build();
-
-            IntakePose1 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(72.000, 24.000), new Pose(24.000, 36.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(58.7),
+                            Math.toRadians(143.9),
                             Math.toRadians(180)
                     )
                     .build();
 
-            ScoreSmallTriangle9 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(24.000, 36.000), new Pose(72.000, 24.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(180),
-                            Math.toRadians(58.7)
-                    )
-                    .build();
-
-            IntakePose3 = follower
+            Pickup2 = follower
                     .pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    new Pose(72.000, 24.000),
-                                    new Pose(60.000, 80.000),
+                                    new Pose(55.000, 75.000),
+                                    new Pose(44.000, 58.000),
+                                    new Pose(10.000, 58.000)
+                            )
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
+
+            Shoot6 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(10.000, 58.000),
+                                    new Pose(20.250, 56.500),
+                                    new Pose(55.000, 75.000)
+                            )
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .build();
+
+            PickupGate1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(55.000, 75.000), new Pose(12.000, 60.000))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(150))
+                    .build();
+
+            Shoot9 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(12.000, 60.000), new Pose(55.000, 75.000))
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(150))
+                    .build();
+
+            PickupGate2 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(55.000, 75.000), new Pose(12.000, 60.000))
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(150))
+                    .build();
+
+            Shoot12 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(12.000, 60.000), new Pose(55.000, 75.000))
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(150))
+                    .build();
+
+            PickupGate3 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(55.000, 75.000), new Pose(12.000, 60.000))
+                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(150))
+                    .build();
+
+            Shoot15 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierLine(new Pose(12.000, 60.000), new Pose(55.000, 75.000))
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(180))
+                    .build();
+
+            Pickup1 = follower
+                    .pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(55.000, 75.000),
+                                    new Pose(52.000, 84.000),
                                     new Pose(24.000, 84.000)
                             )
                     )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(58.7),
-                            Math.toRadians(170)
-                    )
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
-            ScoreSmallTriangle12 = follower
+            SHoot18 = follower
                     .pathBuilder()
                     .addPath(
-                            new BezierLine(new Pose(24.000, 84.000), new Pose(72.000, 24.000))
+                            new BezierLine(new Pose(24.000, 84.000), new Pose(55.000, 75.000))
                     )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(170),
-                            Math.toRadians(58.7)
-                    )
-                    .build();
-
-            IntakeFromRamp = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(72.000, 24.000), new Pose(13.000, 60.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(58.7),
-                            Math.toRadians(155)
-                    )
-                    .build();
-
-            ScoreSmallTriangle15 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(13.000, 60.000), new Pose(72.000, 24.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(155),
-                            Math.toRadians(58.7)
-                    )
-                    .build();
-
-            IntakeFromRamp = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(72.000, 24.000), new Pose(13.000, 60.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(58.7),
-                            Math.toRadians(155)
-                    )
-                    .build();
-
-            ScoreSmallTriangle18 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(13.000, 60.000), new Pose(72.000, 24.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(155),
-                            Math.toRadians(58.7)
-                    )
-                    .build();
-
-            AlmostGate = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(72.000, 24.000), new Pose(19.000, 72.000))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(58.7), Math.toRadians(0))
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
         }
     }

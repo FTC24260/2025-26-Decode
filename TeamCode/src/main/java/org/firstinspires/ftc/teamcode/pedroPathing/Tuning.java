@@ -559,7 +559,7 @@ class ForwardZeroPowerAccelerationTuner extends OpMode {
     public void start() {
         follower.startTeleopDrive(false);
         follower.update();
-        follower.setTeleOpDrive(-1,0,0,true);
+        follower.setTeleOpDrive(1,0,0,true);
     }
 
     /**
