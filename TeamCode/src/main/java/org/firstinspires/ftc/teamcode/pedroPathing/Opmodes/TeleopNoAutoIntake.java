@@ -4,6 +4,7 @@ import static com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE;
 
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
+import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -16,7 +17,7 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.follower.Follower;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "TeleopWithTurretGoalTrack")
+@TeleOp(name = "TeleopWithTurretGoalTrack_PIDShooter")
 public class TeleopNoAutoIntake extends OpMode {
 
     private DcMotor leftFront, leftRear, rightFront, rightRear;
@@ -36,12 +37,6 @@ public class TeleopNoAutoIntake extends OpMode {
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
-    private final double[] RAPID_FIRE_MAX_POWERS = {
-            0.29,
-            0.43,
-            0.49
-    };
-
     private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 800;
 
@@ -56,11 +51,6 @@ public class TeleopNoAutoIntake extends OpMode {
 
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
-
-    private enum RapidFireState { IDLE, SPINUP_WAIT, FLICK_UP, RESET_WAIT }
-    private RapidFireState rapidFireState = RapidFireState.IDLE;
-    private int rapidFireIndex = 0;
-    private long rapidFireTimer = 0;
 
     private boolean lastA = false;
     private boolean waitingForBallClear = false;
@@ -78,13 +68,19 @@ public class TeleopNoAutoIntake extends OpMode {
     private final double goalY = 144;
     private int turretZero = 0;
 
-    public static final double[][] POWER_TABLE = {
-            {12, 0.8},
-            {24, 0.57},
-            {36, 0.66},
-            {48, 0.73},
-            {60, 0.79}
-    };
+    // ===== Shooter proportional control & distance interpolation =====
+    private double[] shooterDistanceX = {300, 500, 800, 1200}; // distance units
+    private double[] shooterPowerY = {0.4, 0.5, 0.6, 0.7}; // shooter powers
+    private double shooterKp = 5; // proportional constant
+    private double shooterTargetPower = 0;
+
+    private long lastLoopTime = 0;
+
+    private enum ShooterState { IDLE, RAMPING, READY_TO_FLICK, FLICK_UP, FLICK_DOWN, NEXT_POSITION }
+    private ShooterState shooterState = ShooterState.IDLE;
+    private int shooterIndex = 0;
+    private long stateTimer = 0;
+    private final double SHOOTER_THRESHOLD = 0.04; // within 4% of target velocity
 
     @Override
     public void init() {
@@ -139,12 +135,16 @@ public class TeleopNoAutoIntake extends OpMode {
     @Override
     public void start() {
         initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
+        lastLoopTime = System.currentTimeMillis();
     }
 
     @Override
     public void loop() {
         long now = System.currentTimeMillis();
+        double deltaTime = (now - lastLoopTime) / 1000.0; // seconds
+        lastLoopTime = now;
 
+        // ================= Drive =================
         double y = -gamepad2.left_stick_y;
         double x = gamepad2.left_stick_x;
         double rx = gamepad2.right_stick_x;
@@ -164,9 +164,11 @@ public class TeleopNoAutoIntake extends OpMode {
         rightFront.setPower(rf / max);
         rightRear.setPower(rr / max);
 
+        // ================= Intake =================
         boolean intakePressed = gamepad1.left_trigger > 0.1;
         intake.setPower((intakePressed || now < intakeBurstUntil) ? -1 : 0);
 
+        // ================= Ball detection =================
         String detectedColor = detectColor();
         if (detectedColor.equals("unknown")) waitingForBallClear = false;
 
@@ -183,55 +185,75 @@ public class TeleopNoAutoIntake extends OpMode {
             waitingForBallClear = true;
         }
 
-        if (rapidFireState == RapidFireState.IDLE && anySlotLoaded()) {
-            if (gamepad1.a && !lastA) {
-                rapidFireIndex = 0;
-                rapidFireTimer = now + 900;
-                rapidFireState = RapidFireState.SPINUP_WAIT;
-            }
-        }
-        lastA = gamepad1.a;
+        // ================= Shooter distance & proportional control =================
+        double limelightDist = getLimelightDistance();
+        shooterTargetPower = linearInterpolation(limelightDist);
 
-        if (rapidFireState != RapidFireState.IDLE) {
-            double power = clamp(feedforward(100), 0, RAPID_FIRE_MAX_POWERS[rapidFireIndex]);
-            shooterL.setPower(power);
-            shooterR.setPower(power);
+        double currentVelocity = shooterL.getVelocity();
+        double error = shooterTargetPower - currentVelocity;
+        double pidPower = shooterKp * error; // proportional only
 
-            if (rapidFireState == RapidFireState.SPINUP_WAIT) {
-                setSpindexShootPosition(rapidFireIndex);
-                if (now >= rapidFireTimer) {
-                    flicker.setPosition(flickerUp);
-                    rapidFireTimer = now + 200;
-                    rapidFireState = RapidFireState.FLICK_UP;
+        // ================= Shooter sequence =================
+        switch (shooterState) {
+            case IDLE:
+                if (gamepad1.a && !lastA && anySlotLoaded()) {
+                    shooterIndex = 0;
+                    shooterState = ShooterState.RAMPING;
                 }
-            } else if (rapidFireState == RapidFireState.FLICK_UP) {
-                if (now >= rapidFireTimer) {
-                    flicker.setPosition(flickerDown);
-                    slots[rapidFireIndex] = "unknown";
+                break;
 
-                    if (rapidFireIndex < 2 && anySlotLoaded()) {
-                        rapidFireIndex++;
-                        intakeBurstUntil = now + INTAKE_BURST_MS;
-                        rapidFireTimer = now + 900;
-                        rapidFireState = RapidFireState.SPINUP_WAIT;
+            case RAMPING:
+                shooterL.setPower(pidPower);
+                shooterR.setPower(pidPower);
+                setSpindexShootPosition(shooterIndex);
+                stateTimer = now + 300;
+                shooterState = ShooterState.READY_TO_FLICK;
+                break;
+
+            case READY_TO_FLICK:
+                shooterL.setPower(pidPower);
+                shooterR.setPower(pidPower);
+                if (Math.abs(currentVelocity - shooterTargetPower) < SHOOTER_THRESHOLD) {
+                    flicker.setPosition(flickerUp);
+                    stateTimer = now + 200;
+                    shooterState = ShooterState.FLICK_UP;
+                }
+                break;
+
+            case FLICK_UP:
+                shooterL.setPower(pidPower);
+                shooterR.setPower(pidPower);
+                if (now >= stateTimer) {
+                    flicker.setPosition(flickerDown);
+                    stateTimer = now + 200;
+                    shooterState = ShooterState.FLICK_DOWN;
+                }
+                break;
+
+            case FLICK_DOWN:
+                shooterL.setPower(pidPower);
+                shooterR.setPower(pidPower);
+                if (now >= stateTimer) {
+                    shooterIndex++;
+                    if (shooterIndex < 3 && anySlotLoaded()) {
+                        setSpindexShootPosition(shooterIndex);
+                        stateTimer = now + 300;
+                        shooterState = ShooterState.READY_TO_FLICK;
                     } else {
-                        rapidFireTimer = now + 200;
-                        rapidFireState = RapidFireState.RESET_WAIT;
+                        shooterState = ShooterState.IDLE;
+                        shooterL.setPower(0);
+                        //shooterR.setPower(0);
+                        currentIndex = 0;
+                        setSpindexIntakePosition(0);
+                        postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
                     }
                 }
-            } else if (rapidFireState == RapidFireState.RESET_WAIT) {
-                if (now >= rapidFireTimer) {
-                    shooterL.setPower(0);
-                    shooterR.setPower(0);
-                    rapidFireIndex = 0;
-                    currentIndex = 0;
-                    setSpindexIntakePosition(0);
-                    postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
-                    rapidFireState = RapidFireState.IDLE;
-                }
-            }
+                break;
         }
 
+        lastA = gamepad1.a;
+
+        // ================= Turret =================
         follower.update();
         Pose robotPose = follower.getPoseTracker().getPose();
         double dx = goalX - robotPose.getX();
@@ -258,8 +280,11 @@ public class TeleopNoAutoIntake extends OpMode {
 
         turret.setPower(turretPower);
 
+        // ================= Telemetry =================
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
-        telemetry.addData("RapidFire", rapidFireState);
+        telemetry.addData("Shooter Target", shooterTargetPower);
+        telemetry.addData("Shooter Velocity", currentVelocity);
+        telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Turret Power", turretPower);
         telemetry.addData("Turret Pos", turret.getCurrentPosition());
         telemetry.addData("Robot Pose", "X=%.1f Y=%.1f Heading=%.1f",
@@ -314,23 +339,30 @@ public class TeleopNoAutoIntake extends OpMode {
         return !slots[0].equals("unknown") || !slots[1].equals("unknown") || !slots[2].equals("unknown");
     }
 
-    private double feedforward(double targetVel) {
-        return 0.4 * Math.signum(targetVel) + 0.01 * targetVel;
-    }
-
     private double clamp(double v, double min, double max) {
         return Math.max(min, Math.min(max, v));
     }
 
-    private double getVelocityFromDistance(double distance) {
-        for (int i = 0; i < POWER_TABLE.length - 1; i++) {
-            if (distance >= POWER_TABLE[i][0] && distance <= POWER_TABLE[i + 1][0]) {
-                double x0 = POWER_TABLE[i][0], y0 = POWER_TABLE[i][1];
-                double x1 = POWER_TABLE[i + 1][0], y1 = POWER_TABLE[i + 1][1];
-                return y0 + (distance - x0) / (x1 - x0) * (y1 - y0);
+    private double getLimelightDistance() {
+        LLResult result = limelight.getLatestResult();
+        if (result == null || !result.isValid()) return -1;
+
+        double ta = result.getTa();
+        if (ta < 1.0) return -1;
+
+        double k = 50.0; // tune on-field
+        return k / Math.sqrt(ta);
+    }
+
+    private double linearInterpolation(double x) {
+        for (int i = 0; i < shooterDistanceX.length - 1; i++) {
+            if (x >= shooterDistanceX[i] && x <= shooterDistanceX[i + 1]) {
+                double x0 = shooterDistanceX[i], y0 = shooterPowerY[i];
+                double x1 = shooterDistanceX[i + 1], y1 = shooterPowerY[i + 1];
+                return y0 + (x - x0) / (x1 - x0) * (y1 - y0);
             }
         }
-        if (distance < POWER_TABLE[0][0]) return POWER_TABLE[0][1];
-        else return POWER_TABLE[POWER_TABLE.length - 1][1];
+        if (x < shooterDistanceX[0]) return shooterPowerY[0];
+        return shooterPowerY[shooterPowerY.length - 1];
     }
 }

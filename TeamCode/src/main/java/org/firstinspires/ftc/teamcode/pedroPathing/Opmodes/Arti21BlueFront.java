@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "21 Blue Front", group = "Autonomous")
+//@Autonomous(name = "21 Blue Front", group = "Autonomous")
 public class Arti21BlueFront extends OpMode {
     private Follower follower;
     private Timer pathTimer;

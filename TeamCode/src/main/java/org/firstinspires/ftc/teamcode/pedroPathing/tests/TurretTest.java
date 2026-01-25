@@ -7,7 +7,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.follower.Follower;
 
-@TeleOp(name = "Turret Aim Goal", group = "Pedro Pathing")
+//@TeleOp(name = "Turret Aim Goal", group = "Pedro Pathing")
 public class TurretTest extends OpMode {
 
     private Follower follower;

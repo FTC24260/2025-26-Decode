@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing.tests;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-@Autonomous(name = "Decode PreStart Menu")
+//@Autonomous(name = "Decode PreStart Menu")
 public class PreStartSetupExample extends LinearOpMode {
 
     int numBalls = 0;
