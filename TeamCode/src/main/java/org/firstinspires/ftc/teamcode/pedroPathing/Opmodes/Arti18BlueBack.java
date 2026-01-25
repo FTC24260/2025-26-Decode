@@ -26,7 +26,7 @@ public class Arti18BlueBack extends OpMode {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(72, 8, Math.toRadians(90)));
+        follower.setStartingPose(new Pose(21, 121.8, Math.toRadians(90)));
 
         paths = new Paths(follower); // Build paths
 
@@ -37,7 +37,7 @@ public class Arti18BlueBack extends OpMode {
     @Override
     public void loop() {
         follower.update(); // Update Pedro Pathing
-        pathState = autonomousPathUpdate(); // Update autonomous state machine
+        autonomousPathUpdate(); // Update autonomous state machine
 
         // Log values to Panels and Driver Station
         panelsTelemetry.debug("Path State", pathState);
@@ -167,10 +167,84 @@ public class Arti18BlueBack extends OpMode {
         }
     }
 
-    public int autonomousPathUpdate() {
-        // Add your state machine Here
-        // Access paths with paths.pathName
-        // Refer to the Pedro Pathing Docs (Auto Example) for an example state machine
-        return pathState;
+    public void autonomousPathUpdate() {
+        switch (pathState) {
+            case 0:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.ShootPreload3, true);
+                    setPathState(1);
+                }
+                break;
+            case 1:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.Pickup2, true);
+                    setPathState(2);
+                }
+                break;
+            case 2:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.Shoot6, true);
+                    setPathState(3);
+                }
+                break;
+            case 3:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.PickupGate1, true);
+                    setPathState(4);
+                }
+                break;
+            case 4:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.Shoot9, true);
+                    setPathState(5);
+                }
+                break;
+            case 5:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.PickupGate2, true);
+                    setPathState(6);
+                }
+                break;
+            case 6:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.Shoot12, true);
+                    setPathState(7);
+                }
+                break;
+            case 7:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.PickupGate3, true);
+                    setPathState(8);
+                }
+                break;
+            case 8:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.Shoot15, true);
+                    setPathState(9);
+                }
+                break;
+            case 9:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.Pickup1, true);
+                    setPathState(10);
+                }
+                break;
+            case 10:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.SHoot18, true);
+                    setPathState(11);
+                }
+                break;
+            case 11:
+                if (!follower.isBusy()) {
+                    setPathState(-1); // Finished all paths
+                }
+                break;
+        }
     }
+
+    public void setPathState(int pState) {
+        pathState = pState;
+    }
+
 }
