@@ -1,250 +1,274 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.Opmodes;
 
-import com.bylazar.configurables.annotations.Configurable;
-import com.bylazar.telemetry.PanelsTelemetry;
-import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
+import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
+
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @Autonomous(name = "Pedro Pathing Autonomous", group = "Autonomous")
-@Configurable // Panels
 public class Arti18BlueBack extends OpMode {
 
-    private TelemetryManager panelsTelemetry; // Panels Telemetry instance
-    public Follower follower; // Pedro Pathing follower instance
-    private int pathState; // Current autonomous path state (state machine)
-    private Paths paths; // Paths defined in the Paths class
+    private Follower follower;
+    private Timer pathTimer;
+    private int pathState;
 
-    @Override
-    public void init() {
-        panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+    private DcMotor intake;
+    private ColorSensor colorSensor;
+    private Servo leftIndex, rightIndex;
 
-        follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(21, 121.8, Math.toRadians(90)));
+    private final double[] intakePositions = {0.084, 0.174, 0.264};
+    private final String[] slots = {"unknown", "unknown", "unknown"};
+    private int currentIndex = 0;
 
-        paths = new Paths(follower); // Build paths
+    private long ignoreSensorUntil = 0;
+    private static final long SENSOR_IGNORE_MS = 800;
+    private long initialIgnoreUntil = 0;
+    private static final long INITIAL_IGNORE_MS = 400;
+    private boolean waitingForBallClear = false;
 
-        panelsTelemetry.debug("Status", "Initialized");
-        panelsTelemetry.update(telemetry);
-    }
+    private static final double SERVO_DEADZONE = 0.004;
+    private double lastLeftIndexPos = -1;
+    private double lastRightIndexPos = -1;
 
-    @Override
-    public void loop() {
-        follower.update(); // Update Pedro Pathing
-        autonomousPathUpdate(); // Update autonomous state machine
+    private final Pose startPose = new Pose(24, 124, Math.toRadians(143.9));
+    private final Pose pickup1Pose = new Pose(30, 84, Math.toRadians(180));
+    private final Pose pickup2Pose = new Pose(25, 50, Math.toRadians(180));
+    private final Pose shoot6Pose = new Pose(60, 81, Math.toRadians(200));
+    private final Pose shoot9Pose = new Pose(60, 81, Math.toRadians(150));
+    private final Pose shoot12Pose = new Pose(60, 81, Math.toRadians(150));
+    private final Pose shoot15Pose = new Pose(60, 81, Math.toRadians(180));
+    private final Pose shoot18Pose = new Pose(60, 81, Math.toRadians(180));
+    private final Pose pickupGate1Pose = new Pose(15, 57, Math.toRadians(150));
+    private final Pose pickupGate2Pose = new Pose(15, 57, Math.toRadians(150));
+    private final Pose pickupGate3Pose = new Pose(15, 57, Math.toRadians(150));
 
-        // Log values to Panels and Driver Station
-        panelsTelemetry.debug("Path State", pathState);
-        panelsTelemetry.debug("X", follower.getPose().getX());
-        panelsTelemetry.debug("Y", follower.getPose().getY());
-        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
-        panelsTelemetry.update(telemetry);
-    }
+    private PathChain shootPreload3;
+    private PathChain pickup1;
+    private PathChain shoot6;
+    private PathChain pickup2;
+    private PathChain shoot9;
+    private PathChain pickupGate1;
+    private PathChain shoot12;
+    private PathChain pickupGate2;
+    private PathChain shoot15;
+    private PathChain pickupGate3;
+    private PathChain shoot18;
 
-    public static class Paths {
+    public void preStart() {
+        shootPreload3 = follower.pathBuilder()
+                .addPath(new BezierLine(startPose, shoot6Pose))
+                .setLinearHeadingInterpolation(startPose.getHeading(), shoot6Pose.getHeading())
+                .build();
 
-        public PathChain ShootPreload3;
-        public PathChain Pickup2;
-        public PathChain Shoot6;
-        public PathChain PickupGate1;
-        public PathChain Shoot9;
-        public PathChain PickupGate2;
-        public PathChain Shoot12;
-        public PathChain PickupGate3;
-        public PathChain Shoot15;
-        public PathChain Pickup1;
-        public PathChain SHoot18;
+        pickup1 = follower.pathBuilder()
+                .addPath(new BezierCurve(shoot6Pose, new Pose(52, 84), pickup1Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
 
-        public Paths(Follower follower) {
-            ShootPreload3 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(21.000, 121.800), new Pose(55.000, 75.000))
-                    )
-                    .setLinearHeadingInterpolation(
-                            Math.toRadians(143.9),
-                            Math.toRadians(180)
-                    )
-                    .build();
+        shoot6 = follower.pathBuilder()
+                .addPath(new BezierLine(pickup1Pose, shoot6Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
 
-            Pickup2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(55.000, 75.000),
-                                    new Pose(44.000, 58.000),
-                                    new Pose(10.000, 58.000)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
+        pickup2 = follower.pathBuilder()
+                .addPath(new BezierCurve(shoot6Pose, new Pose(65, 60), pickup2Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
 
-            Shoot6 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(10.000, 58.000),
-                                    new Pose(20.250, 56.500),
-                                    new Pose(55.000, 75.000)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
+        shoot9 = follower.pathBuilder()
+                .addPath(new BezierCurve(pickup2Pose, new Pose(20.25, 56.5), shoot9Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(150))
+                .build();
 
-            PickupGate1 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(55.000, 75.000), new Pose(12.000, 60.000))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(150))
-                    .build();
+        pickupGate1 = follower.pathBuilder()
+                .addPath(new BezierLine(shoot9Pose, pickupGate1Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(150))
+                .build();
 
-            Shoot9 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(12.000, 60.000), new Pose(55.000, 75.000))
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(150))
-                    .build();
+        shoot12 = follower.pathBuilder()
+                .addPath(new BezierLine(pickupGate1Pose, shoot12Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(150))
+                .build();
 
-            PickupGate2 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(55.000, 75.000), new Pose(12.000, 60.000))
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(150))
-                    .build();
+        pickupGate2 = follower.pathBuilder()
+                .addPath(new BezierLine(shoot12Pose, pickupGate2Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(150))
+                .build();
 
-            Shoot12 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(12.000, 60.000), new Pose(55.000, 75.000))
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(150))
-                    .build();
+        shoot15 = follower.pathBuilder()
+                .addPath(new BezierLine(pickupGate2Pose, shoot15Pose))
+                .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(180))
+                .build();
 
-            PickupGate3 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(55.000, 75.000), new Pose(12.000, 60.000))
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(150))
-                    .build();
+        pickupGate3 = follower.pathBuilder()
+                .addPath(new BezierLine(shoot15Pose, pickupGate3Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(150))
+                .build();
 
-            Shoot15 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(12.000, 60.000), new Pose(55.000, 75.000))
-                    )
-                    .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(180))
-                    .build();
-
-            Pickup1 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(55.000, 75.000),
-                                    new Pose(52.000, 84.000),
-                                    new Pose(24.000, 84.000)
-                            )
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
-
-            SHoot18 = follower
-                    .pathBuilder()
-                    .addPath(
-                            new BezierLine(new Pose(24.000, 84.000), new Pose(55.000, 75.000))
-                    )
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
-        }
+        shoot18 = follower.pathBuilder()
+                .addPath(new BezierLine(pickupGate3Pose, shoot18Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
     }
 
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.ShootPreload3, true);
+                    follower.followPath(shootPreload3, true);
                     setPathState(1);
                 }
                 break;
+
             case 1:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.Pickup2, true);
+                    intake.setPower(-1);
+                    initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
+                    follower.followPath(pickup1, true);
                     setPathState(2);
                 }
                 break;
+
             case 2:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot6, true);
+                    intake.setPower(0);
+                    follower.followPath(shoot6, true);
                     setPathState(3);
                 }
                 break;
+
             case 3:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupGate1, true);
-                    setPathState(4);
-                }
+                if (!follower.isBusy()) { follower.followPath(pickup2, true); setPathState(4); }
                 break;
             case 4:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot9, true);
-                    setPathState(5);
-                }
+                if (!follower.isBusy()) { follower.followPath(shoot9, true); setPathState(5); }
                 break;
             case 5:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupGate2, true);
-                    setPathState(6);
-                }
+                if (!follower.isBusy()) { follower.followPath(pickupGate1, true); setPathState(6); }
                 break;
             case 6:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot12, true);
-                    setPathState(7);
-                }
+                if (!follower.isBusy()) { follower.followPath(shoot12, true); setPathState(7); }
                 break;
             case 7:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupGate3, true);
-                    setPathState(8);
-                }
+                if (!follower.isBusy()) { follower.followPath(pickupGate2, true); setPathState(8); }
                 break;
             case 8:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Shoot15, true);
-                    setPathState(9);
-                }
+                if (!follower.isBusy()) { follower.followPath(shoot15, true); setPathState(9); }
                 break;
             case 9:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Pickup1, true);
-                    setPathState(10);
-                }
+                if (!follower.isBusy()) { follower.followPath(pickupGate3, true); setPathState(10); }
                 break;
             case 10:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.SHoot18, true);
-                    setPathState(11);
-                }
+                if (!follower.isBusy()) { follower.followPath(shoot18, true); setPathState(11); }
                 break;
             case 11:
-                if (!follower.isBusy()) {
-                    setPathState(-1); // Finished all paths
-                }
+                if (!follower.isBusy()) { setPathState(-1); }
                 break;
+        }
+    }
+
+    private void updateSpindexLogic() {
+        if (pathState != 2) return;
+
+        long now = System.currentTimeMillis();
+
+        String detectedColor = detectColor();
+        if (detectedColor.equals("unknown")) waitingForBallClear = false;
+
+        if (!waitingForBallClear
+                && !detectedColor.equals("unknown")
+                && now >= ignoreSensorUntil
+                && now >= initialIgnoreUntil
+                && currentIndex < 3) {
+            slots[currentIndex] = detectedColor;
+            currentIndex++;
+            setSpindexIntakePosition(currentIndex);
+            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+            waitingForBallClear = true;
         }
     }
 
     public void setPathState(int pState) {
         pathState = pState;
+        pathTimer.resetTimer();
     }
 
+    @Override
+    public void init() {
+        pathTimer = new Timer();
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(startPose);
+
+        intake = hardwareMap.get(DcMotor.class, "intake");
+        colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
+        leftIndex = hardwareMap.get(Servo.class, "leftIndex");
+        rightIndex = hardwareMap.get(Servo.class, "rightIndex");
+
+        setSpindexIntakePosition(0);
+
+        preStart();
+    }
+
+    @Override
+    public void start() {
+        pathTimer.resetTimer();
+        setPathState(0);
+    }
+
+    @Override
+    public void loop() {
+        follower.update();
+        autonomousPathUpdate();
+        updateSpindexLogic();
+        publishTelemetry();
+    }
+
+    public void publishTelemetry() {
+        telemetry.addData("Path State", pathState);
+        telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
+        telemetry.update();
+    }
+
+    private String detectColor() {
+        int r = colorSensor.red();
+        int g = colorSensor.green();
+        int b = colorSensor.blue();
+        if (g > 1.2 * r && g > 1.2 * b && g > 20) return "green";
+        int maxRB = Math.max(r, b);
+        int minRB = Math.min(r, b);
+        if (maxRB > 40 && minRB >= 0.5 * maxRB && g < 0.7 * maxRB) return "purple";
+        return "unknown";
+    }
+
+    private void setSpindexIntakePosition(int index) {
+        if (index >= intakePositions.length) index = intakePositions.length - 1;
+        applyServoDeadzone(intakePositions[index]);
+    }
+
+    private void applyServoDeadzone(double pos) {
+        double left = Math.max(0, Math.min(1, pos));
+        double right = left;
+        if (Math.abs(left - lastLeftIndexPos) > SERVO_DEADZONE) {
+            leftIndex.setPosition(left);
+            lastLeftIndexPos = left;
+        }
+        if (Math.abs(right - lastRightIndexPos) > SERVO_DEADZONE) {
+            rightIndex.setPosition(right);
+            lastRightIndexPos = right;
+        }
+    }
+
+    @Override
+    public void stop() {
+        intake.setPower(0);
+    }
 }

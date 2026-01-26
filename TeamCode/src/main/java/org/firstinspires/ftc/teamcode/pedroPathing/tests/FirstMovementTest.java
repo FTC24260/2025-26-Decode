@@ -19,7 +19,7 @@ public class FirstMovementTest extends OpMode {
 
     // Pose definitions
     private final Pose startPose = new Pose(21, 121.8, Math.toRadians(143.9));
-    private final Pose pickup2Pose = new Pose(55, 75, Math.toRadians(143.9));
+    private final Pose pickup2Pose = new Pose(30, 110, Math.toRadians(143.9));
     private final Pose pickup2ControlPose = new Pose(52, 59);
 
     // PathChain
