@@ -14,13 +14,14 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "Arti9 Blue Front Auto + Spindex + Turret", group = "Autonomous")
+@Autonomous(name = "Arti9 Blue Front Auto + Shooter + Spindex + Turret", group = "Autonomous")
 public class Arti9BlueFront extends OpMode {
 
     private Follower follower;
@@ -28,27 +29,37 @@ public class Arti9BlueFront extends OpMode {
     private int pathState;
 
     private DcMotor intake;
+    private DcMotorEx shooterL, shooterR;
     private ColorSensor colorSensor;
-    private Servo leftIndex, rightIndex;
+    private Servo leftIndex, rightIndex, flicker;
 
     private DcMotor turret;
     private Limelight3A limelight;
 
     private final double[] intakePositions = {0.084, 0.174, 0.264};
+    private final double[] shootPositions = {0.31, 0.4, 0.49};
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
     private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 500;
-
     private long initialIgnoreUntil = 0;
     private static final long INITIAL_IGNORE_MS = 400;
-
     private boolean waitingForBallClear = false;
 
     private static final double SERVO_DEADZONE = 0.004;
     private double lastLeftIndexPos = -1;
     private double lastRightIndexPos = -1;
+
+    // ==== Shooter sequence timing ====
+    private final double SHOOTER_POWER = 0.4;
+    private Timer shootTimer = new Timer();
+    private int shootingStep = 0;
+    private int shootBallIndex = 0;
+    private boolean shootingPaused = false;
+
+    private final double flickerUp = 0.45;
+    private final double flickerDown = 0.7;
 
     // ==== Poses ====
     private final Pose startPose = new Pose(13, 127, Math.toRadians(145));
@@ -93,10 +104,19 @@ public class Arti9BlueFront extends OpMode {
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
+        flicker = hardwareMap.get(Servo.class, "flicker");
+
+        shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
+        shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
+        shooterR.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterL.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
+        shooterR.setZeroPowerBehavior(ZeroPowerBehavior.FLOAT);
 
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setZeroPowerBehavior(ZeroPowerBehavior.BRAKE);
-        turret.setDirection(DcMotorSimple.Direction.REVERSE);
+        turret.setDirection(REVERSE);
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turretZero = turret.getCurrentPosition();
@@ -106,23 +126,39 @@ public class Arti9BlueFront extends OpMode {
         limelight.start();
 
         setSpindexIntakePosition(0);
+        flicker.setPosition(flickerDown);
         buildPaths();
     }
 
     @Override
     public void start() {
         pathTimer.resetTimer();
-        setPathState(0);
+        pathState = 0;
         initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS;
     }
 
     @Override
     public void loop() {
-        follower.update();
+        // Run shooter continuously
+        shooterL.setPower(SHOOTER_POWER);
+        shooterR.setPower(SHOOTER_POWER);
+
+        // Only update follower if not in shooting sequence
+        if (!shootingPaused) follower.update();
+
+        // Manage path following
         autonomousPathUpdate();
+
+        // Handle spindex ball intake
         updateSpindexAuto();
+
+        // Check for shoot positions and run rapid-fire sequence
+        handleShootingSequence();
+
+        // Always aim turret at goal
         updateTurretAlways();
 
+        // Telemetry
         Pose p = follower.getPose();
         telemetry.addData("Path State", pathState);
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
@@ -130,61 +166,20 @@ public class Arti9BlueFront extends OpMode {
         telemetry.addData("Y", p.getY());
         telemetry.addData("Heading", Math.toDegrees(p.getHeading()));
         telemetry.addData("Turret Pos", turret.getCurrentPosition());
+        telemetry.addData("Shooting Step", shootingStep);
         telemetry.update();
     }
 
     @Override
     public void stop() {
         intake.setPower(0);
+        shooterL.setPower(0);
+        shooterR.setPower(0);
         turret.setPower(0);
         limelight.stop();
     }
 
-    // ===== Turret always aim =====
-    private void updateTurretAlways() {
-        LLResult result = limelight.getLatestResult();
-        if (result != null && result.isValid()) {
-            double dx = 0 - follower.getPose().getX();
-            double dy = 144 - follower.getPose().getY();
-            double targetAngle = Math.atan2(dy, dx) - follower.getPose().getHeading();
-
-            double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
-            int targetTicks = turretZero + (int) (targetAngle * ticksPerRadian);
-
-            int delta = targetTicks - turret.getCurrentPosition();
-            int maxRange = TURRET_MAX - TURRET_MIN;
-            while (delta > maxRange / 2) delta -= maxRange;
-            while (delta < -maxRange / 2) delta += maxRange;
-
-            double power = TURRET_KP * delta;
-            power = Math.max(-MAX_TURRET_POWER, Math.min(MAX_TURRET_POWER, power));
-            if ((turret.getCurrentPosition() >= TURRET_MAX && power > 0) ||
-                    (turret.getCurrentPosition() <= TURRET_MIN && power < 0)) power = 0;
-
-            turret.setPower(power);
-        }
-    }
-
-    // ===== Autonomous paths =====
-    private void autonomousPathUpdate() {
-        switch (pathState) {
-            case 0: if (!follower.isBusy()) { follower.followPath(shootPreload, true); setPathState(1); } break;
-            case 1: if (!follower.isBusy()) { intake.setPower(-1); initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS; follower.followPath(pickup11, true); setPathState(2); } break;
-            case 2: if (!follower.isBusy()) { follower.followPath(pickup12, true); setPathState(3); } break;
-            case 3: if (!follower.isBusy()) { follower.followPath(pickup13, true); setPathState(4); } break;
-            case 4: if (!follower.isBusy()) { intake.setPower(0); follower.followPath(shoot6, true); setPathState(5); } break;
-            case 5: if (!follower.isBusy()) { intake.setPower(-1); initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS; follower.followPath(pickup21, true); setPathState(6); } break;
-            case 6: if (!follower.isBusy()) { follower.followPath(pickup22, true); setPathState(7); } break;
-            case 7: if (!follower.isBusy()) { follower.followPath(pickup23, true); setPathState(8); } break;
-            case 8: if (!follower.isBusy()) { intake.setPower(0); follower.followPath(shoot9, true); setPathState(9); } break;
-            case 9: if (!follower.isBusy()) { intake.setPower(-1); initialIgnoreUntil = System.currentTimeMillis() + INITIAL_IGNORE_MS; follower.followPath(pickup31, true); setPathState(10); } break;
-            case 10: if (!follower.isBusy()) { follower.followPath(pickup32, true); setPathState(11); } break;
-            case 11: if (!follower.isBusy()) { follower.followPath(pickup33, true); setPathState(12); } break;
-            case 12: if (!follower.isBusy()) { intake.setPower(0); follower.followPath(shoot12, true); setPathState(13); } break;
-        }
-    }
-
-    // ===== Spindex =====
+    // ====================== Spindex ======================
     private void updateSpindexAuto() {
         long now = System.currentTimeMillis();
         String detectedColor = detectColor();
@@ -215,6 +210,11 @@ public class Arti9BlueFront extends OpMode {
         applyServoDeadzone(intakePositions[index]);
     }
 
+    private void setSpindexShootPosition(int index) {
+        if (index >= shootPositions.length) index = shootPositions.length - 1;
+        applyServoDeadzone(shootPositions[index]);
+    }
+
     private void applyServoDeadzone(double pos) {
         double left = Math.max(0, Math.min(1, pos));
         double right = left;
@@ -222,11 +222,106 @@ public class Arti9BlueFront extends OpMode {
         if (Math.abs(right - lastRightIndexPos) > SERVO_DEADZONE) { rightIndex.setPosition(right); lastRightIndexPos = right; }
     }
 
-    private void setPathState(int state) {
-        pathState = state;
-        pathTimer.resetTimer();
+    // ====================== Turret ======================
+    private void updateTurretAlways() {
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            double dx = 0 - follower.getPose().getX();
+            double dy = 144 - follower.getPose().getY();
+            double targetAngle = Math.atan2(dy, dx) - follower.getPose().getHeading();
+
+            double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
+            int targetTicks = turretZero + (int) (targetAngle * ticksPerRadian);
+
+            int delta = targetTicks - turret.getCurrentPosition();
+            int maxRange = TURRET_MAX - TURRET_MIN;
+            while (delta > maxRange / 2) delta -= maxRange;
+            while (delta < -maxRange / 2) delta += maxRange;
+
+            double power = TURRET_KP * delta;
+            power = Math.max(-MAX_TURRET_POWER, Math.min(MAX_TURRET_POWER, power));
+            if ((turret.getCurrentPosition() >= TURRET_MAX && power > 0) ||
+                    (turret.getCurrentPosition() <= TURRET_MIN && power < 0)) power = 0;
+
+            turret.setPower(power);
+        }
     }
 
+    // ====================== Path following ======================
+    private void autonomousPathUpdate() {
+        switch (pathState) {
+            case 0: if (!follower.isBusy()) { follower.followPath(shootPreload, true); pathState=1; } break;
+            case 1: if (!follower.isBusy()) { intake.setPower(-1); initialIgnoreUntil=System.currentTimeMillis()+INITIAL_IGNORE_MS; follower.followPath(pickup11,true); pathState=2; } break;
+            case 2: if (!follower.isBusy()) { follower.followPath(pickup12,true); pathState=3; } break;
+            case 3: if (!follower.isBusy()) { follower.followPath(pickup13,true); pathState=4; } break;
+            case 4: if (!follower.isBusy()) { intake.setPower(0); follower.followPath(shoot6,true); pathState=5; } break;
+            case 5: if (!follower.isBusy()) { intake.setPower(-1); initialIgnoreUntil=System.currentTimeMillis()+INITIAL_IGNORE_MS; follower.followPath(pickup21,true); pathState=6; } break;
+            case 6: if (!follower.isBusy()) { follower.followPath(pickup22,true); pathState=7; } break;
+            case 7: if (!follower.isBusy()) { follower.followPath(pickup23,true); pathState=8; } break;
+            case 8: if (!follower.isBusy()) { intake.setPower(0); follower.followPath(shoot9,true); pathState=9; } break;
+            case 9: if (!follower.isBusy()) { intake.setPower(-1); initialIgnoreUntil=System.currentTimeMillis()+INITIAL_IGNORE_MS; follower.followPath(pickup31,true); pathState=10; } break;
+            case 10: if (!follower.isBusy()) { follower.followPath(pickup32,true); pathState=11; } break;
+            case 11: if (!follower.isBusy()) { follower.followPath(pickup33,true); pathState=12; } break;
+            case 12: if (!follower.isBusy()) { intake.setPower(0); follower.followPath(shoot12,true); pathState=13; } break;
+        }
+    }
+
+    // ====================== Shooting sequence ======================
+    private void handleShootingSequence() {
+        Pose robotPose = follower.getPose();
+        boolean atShoot = (pathState==1 || pathState==4 || pathState==8 || pathState==12)
+                && Math.hypot(robotPose.getX() - 60, robotPose.getY() - 84) < 3;
+
+        long now = System.currentTimeMillis();
+
+        if (atShoot && shootingStep == 0) {
+            shootingStep = 1;
+            shootTimer.resetTimer();
+            shootBallIndex = 0;
+            shootingPaused = true;
+        }
+
+        if (shootingPaused) {
+            switch (shootingStep) {
+                case 1: // Set spindex
+                    setSpindexShootPosition(shootBallIndex);
+                    shootTimer.resetTimer();
+                    shootingStep = 2;
+                    break;
+                case 2: // Wait 400ms
+                    if (shootTimer.getElapsedTimeSeconds() > 0.4) shootingStep = 3;
+                    break;
+                case 3: // Flick up
+                    flicker.setPosition(flickerUp);
+                    shootTimer.resetTimer();
+                    shootingStep = 4;
+                    break;
+                case 4: // Wait 200ms
+                    if (shootTimer.getElapsedTimeSeconds() > 0.2) shootingStep = 5;
+                    break;
+                case 5: // Flick down
+                    flicker.setPosition(flickerDown);
+                    shootTimer.resetTimer();
+                    shootingStep = 6;
+                    break;
+                case 6: // Wait 200ms
+                    if (shootTimer.getElapsedTimeSeconds() > 0.2) shootingStep = 7;
+                    break;
+                case 7: // Next spindex
+                    shootBallIndex++;
+                    if (shootBallIndex >= 3) { // Done shooting
+                        shootingStep = 0;
+                        shootingPaused = false;
+                    } else {
+                        shootTimer.resetTimer();
+                        shootingStep = 1;
+                    }
+                    break;
+            }
+        }
+    }
+
+    // ====================== Paths ======================
     private void buildPaths() {
         shootPreload = follower.pathBuilder().addPath(new BezierLine(startPose, shootPreloadPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPreloadPose.getHeading()).build();
