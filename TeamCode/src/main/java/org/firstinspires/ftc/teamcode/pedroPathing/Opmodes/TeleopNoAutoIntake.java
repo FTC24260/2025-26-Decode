@@ -49,7 +49,7 @@ public class TeleopNoAutoIntake extends OpMode {
     private long intakeBurstUntil = 0;
     private static final long INTAKE_BURST_MS = 1500;
 
-    private final double flickerUp = 0.45;
+    private final double flickerUp = 0.4;
     private final double flickerDown = 0.7;
 
     private boolean lastA = false;
@@ -63,24 +63,22 @@ public class TeleopNoAutoIntake extends OpMode {
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
-    private final double Kp_GOAL = 0.021;
+    private final double Kp_GOAL = 0.01;
     private final double goalX = 0;
     private final double goalY = 144;
     private int turretZero = 0;
 
-    // ===== Shooter proportional control & distance interpolation =====
-    private double[] shooterDistanceX = {300, 500, 800, 1200}; // distance units
-    private double[] shooterPowerY = {0.4, 0.5, 0.6, 0.7}; // shooter powers
-    private double shooterKp = 5; // proportional constant
-    private double shooterTargetPower = 0;
-
     private long lastLoopTime = 0;
 
-    private enum ShooterState { IDLE, RAMPING, READY_TO_FLICK, FLICK_UP, FLICK_DOWN, NEXT_POSITION }
+    private enum ShooterState { IDLE, RAMPING, READY_TO_FLICK, FLICK_UP, FLICK_DOWN, COOLDOWN }
     private ShooterState shooterState = ShooterState.IDLE;
     private int shooterIndex = 0;
     private long stateTimer = 0;
-    private final double SHOOTER_THRESHOLD = 0.04; // within 4% of target velocity
+
+    private static final long SHOOTER_DELAY_MS = 1300;
+    private static final long SHOOTER_COOLDOWN_MS = 5000;
+
+    private double[] shooterTargetPowerPerShot = {0.075, 0.069, 0.087}; // customize each shot power here
 
     @Override
     public void init() {
@@ -141,10 +139,8 @@ public class TeleopNoAutoIntake extends OpMode {
     @Override
     public void loop() {
         long now = System.currentTimeMillis();
-        double deltaTime = (now - lastLoopTime) / 1000.0; // seconds
         lastLoopTime = now;
 
-        // ================= Drive =================
         double y = -gamepad2.left_stick_y;
         double x = gamepad2.left_stick_x;
         double rx = gamepad2.right_stick_x;
@@ -164,11 +160,11 @@ public class TeleopNoAutoIntake extends OpMode {
         rightFront.setPower(rf / max);
         rightRear.setPower(rr / max);
 
-        // ================= Intake =================
         boolean intakePressed = gamepad1.left_trigger > 0.1;
-        intake.setPower((intakePressed || now < intakeBurstUntil) ? -1 : 0);
+        intake.setPower((intakePressed || shooterState != ShooterState.IDLE && shooterState != ShooterState.COOLDOWN) ? -1 : 0);
 
-        // ================= Ball detection =================
+
+
         String detectedColor = detectColor();
         if (detectedColor.equals("unknown")) waitingForBallClear = false;
 
@@ -185,35 +181,30 @@ public class TeleopNoAutoIntake extends OpMode {
             waitingForBallClear = true;
         }
 
-        // ================= Shooter distance & proportional control =================
-        double limelightDist = getLimelightDistance();
-        shooterTargetPower = linearInterpolation(limelightDist);
+        // Inside your loop(), modify the shooter state handling like this:
 
-        double currentVelocity = shooterL.getVelocity();
-        double error = shooterTargetPower - currentVelocity;
-        double pidPower = shooterKp * error; // proportional only
-
-        // ================= Shooter sequence =================
         switch (shooterState) {
             case IDLE:
                 if (gamepad1.a && !lastA && anySlotLoaded()) {
                     shooterIndex = 0;
+                    intake.setPower(-1); // start intake burst for rapid fire
                     shooterState = ShooterState.RAMPING;
                 }
                 break;
 
             case RAMPING:
-                shooterL.setPower(pidPower);
-                shooterR.setPower(pidPower);
+                double rampVelocity = shooterTargetPowerPerShot[shooterIndex] * 16000;
+                shooterL.setVelocity(rampVelocity);
+                shooterR.setVelocity(rampVelocity);
                 setSpindexShootPosition(shooterIndex);
-                stateTimer = now + 300;
+                stateTimer = now + SHOOTER_DELAY_MS;
                 shooterState = ShooterState.READY_TO_FLICK;
                 break;
 
             case READY_TO_FLICK:
-                shooterL.setPower(pidPower);
-                shooterR.setPower(pidPower);
-                if (Math.abs(currentVelocity - shooterTargetPower) < SHOOTER_THRESHOLD) {
+                shooterL.setVelocity(shooterTargetPowerPerShot[shooterIndex] * 16000);
+                shooterR.setVelocity(shooterTargetPowerPerShot[shooterIndex] * 16000);
+                if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
                     stateTimer = now + 200;
                     shooterState = ShooterState.FLICK_UP;
@@ -221,39 +212,50 @@ public class TeleopNoAutoIntake extends OpMode {
                 break;
 
             case FLICK_UP:
-                shooterL.setPower(pidPower);
-                shooterR.setPower(pidPower);
+                shooterL.setVelocity(shooterTargetPowerPerShot[shooterIndex] * 16000);
+                shooterR.setVelocity(shooterTargetPowerPerShot[shooterIndex] * 16000);
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 200;
+                    stateTimer = now + 300;
                     shooterState = ShooterState.FLICK_DOWN;
                 }
                 break;
 
             case FLICK_DOWN:
-                shooterL.setPower(pidPower);
-                shooterR.setPower(pidPower);
+                shooterL.setVelocity(shooterTargetPowerPerShot[shooterIndex] * 16000);
+                shooterR.setVelocity(shooterTargetPowerPerShot[shooterIndex] * 16000);
                 if (now >= stateTimer) {
                     shooterIndex++;
                     if (shooterIndex < 3 && anySlotLoaded()) {
                         setSpindexShootPosition(shooterIndex);
-                        stateTimer = now + 300;
+                        stateTimer = now + 400;
                         shooterState = ShooterState.READY_TO_FLICK;
                     } else {
-                        shooterState = ShooterState.IDLE;
-                        shooterL.setPower(0);
-                        //shooterR.setPower(0);
-                        currentIndex = 0;
-                        setSpindexIntakePosition(0);
-                        postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
+                        stateTimer = now + SHOOTER_COOLDOWN_MS;
+                        shooterState = ShooterState.COOLDOWN;
                     }
+                }
+                break;
+
+            case COOLDOWN:
+                shooterL.setVelocity(shooterTargetPowerPerShot[2] * 16000);
+                shooterR.setVelocity(shooterTargetPowerPerShot[2] * 16000);
+                intake.setPower(0); // stop intake after rapid fire
+                if (now >= stateTimer) {
+                    shooterL.setPower(0);
+                    shooterR.setPower(0);
+                    shooterState = ShooterState.IDLE;
+                    currentIndex = 0;
+                    setSpindexIntakePosition(0);
+                    postRapidIgnoreUntil = now + POST_RAPID_IGNORE_MS;
+                    intake.setPower(0);
+
                 }
                 break;
         }
 
         lastA = gamepad1.a;
 
-        // ================= Turret =================
         follower.update();
         Pose robotPose = follower.getPoseTracker().getPose();
         double dx = goalX - robotPose.getX();
@@ -280,15 +282,14 @@ public class TeleopNoAutoIntake extends OpMode {
 
         turret.setPower(turretPower);
 
-        // ================= Telemetry =================
         telemetry.addData("Slots", slots[0] + ", " + slots[1] + ", " + slots[2]);
-        telemetry.addData("Shooter Target", shooterTargetPower);
-        telemetry.addData("Shooter Velocity", currentVelocity);
+        telemetry.addData("Shooter Power 1", shooterTargetPowerPerShot[0]);
+        telemetry.addData("Shooter Power 2", shooterTargetPowerPerShot[1]);
+        telemetry.addData("Shooter Power 3", shooterTargetPowerPerShot[2]);
+        telemetry.addData("Shooter Velocity", shooterL.getVelocity());
         telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Turret Power", turretPower);
         telemetry.addData("Turret Pos", turret.getCurrentPosition());
-        telemetry.addData("Robot Pose", "X=%.1f Y=%.1f Heading=%.1f",
-                robotPose.getX(), robotPose.getY(), Math.toDegrees(robotPose.getHeading()));
         telemetry.update();
     }
 
@@ -346,23 +347,13 @@ public class TeleopNoAutoIntake extends OpMode {
     private double getLimelightDistance() {
         LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) return -1;
-
         double ta = result.getTa();
         if (ta < 1.0) return -1;
-
-        double k = 50.0; // tune on-field
+        double k = 50.0;
         return k / Math.sqrt(ta);
     }
 
     private double linearInterpolation(double x) {
-        for (int i = 0; i < shooterDistanceX.length - 1; i++) {
-            if (x >= shooterDistanceX[i] && x <= shooterDistanceX[i + 1]) {
-                double x0 = shooterDistanceX[i], y0 = shooterPowerY[i];
-                double x1 = shooterDistanceX[i + 1], y1 = shooterPowerY[i + 1];
-                return y0 + (x - x0) / (x1 - x0) * (y1 - y0);
-            }
-        }
-        if (x < shooterDistanceX[0]) return shooterPowerY[0];
-        return shooterPowerY[shooterPowerY.length - 1];
+        return shooterTargetPowerPerShot[0]; // placeholder if needed, we override powers per shot
     }
 }
