@@ -66,6 +66,9 @@ public class RapidFireAutoTest extends OpMode {
     private int pickupState = 0;
     private boolean pickupStarted = false;
 
+    private PathChain returnToShootPath;
+    private boolean returningToShoot = false;
+
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
@@ -115,6 +118,8 @@ public class RapidFireAutoTest extends OpMode {
         shooterR.setVelocity(TARGET_VELOCITY);
         shooterL.setVelocity(TARGET_VELOCITY);
         shooterStarted = true;
+
+        intake.setPower(-1); // Intake runs entire auto
     }
 
     @Override
@@ -124,15 +129,15 @@ public class RapidFireAutoTest extends OpMode {
         follower.update();
         updateTurret();
 
-        // Shooting phase
+        // First shooting phase
         if (pathState == 0 && !follower.isBusy()) {
             startShooting();
             pathState = 1;
         }
 
-        if (shootState != ShootState.DONE) {
+        if (shootState != ShootState.DONE && !returningToShoot) {
             updateShooting(now);
-            return; // wait until shooting done
+            return; // wait until first shooting done
         }
 
         // Pickup phase
@@ -140,22 +145,44 @@ public class RapidFireAutoTest extends OpMode {
             pickupStarted = true;
             pickupState = 0;
             setSpindexIntakePosition(0); // move to first intake slot
-            intake.setPower(-1); // start intake
             follower.followPath(pickupPaths[pickupState], true);
         } else if (pickupState < pickupPaths.length) {
             if (!follower.isBusy()) {
                 pickupState++;
                 if (pickupState < pickupPaths.length) {
-                    setSpindexIntakePosition(pickupState); // move spindex to next slot
+                    setSpindexIntakePosition(pickupState); // move spindex to next intake slot
                     follower.followPath(pickupPaths[pickupState], true);
                 } else {
-                    intake.setPower(0); // stop intake after last pickup
+                    // Start returning to shoot
+                    returnToShootPath = follower.pathBuilder()
+                            .addPath(new BezierLine(pickup13Pose, shootPose))
+                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
+                            .build();
+                    follower.followPath(returnToShootPath, true);
+                    returningToShoot = true;
+                    shooterR.setVelocity(TARGET_VELOCITY);
+                    shooterL.setVelocity(TARGET_VELOCITY);
+                    shootState = ShootState.IDLE; // reset shooting state for second shot
+
+                    // Move spindex to shoot position while driving
+                    setSpindex(0);
                 }
             }
         }
 
+        // Second shooting phase
+        if (returningToShoot && !follower.isBusy() && shootState == ShootState.IDLE) {
+            startShooting();
+            returningToShoot = false; // done returning
+        }
+
+        if (shootState != ShootState.DONE) {
+            updateShooting(now);
+        }
+
         telemetry.addData("ShootState", shootState);
         telemetry.addData("PickupState", pickupState);
+        telemetry.addData("ReturningToShoot", returningToShoot);
         telemetry.update();
     }
 
