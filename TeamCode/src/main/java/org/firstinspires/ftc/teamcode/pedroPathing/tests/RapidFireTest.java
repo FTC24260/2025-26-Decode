@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.follower.Follower;
@@ -12,13 +13,23 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "ShooterSequenceTeleop")
+@TeleOp(name = "RapidFireTest_Merged")
 public class RapidFireTest extends OpMode {
 
-    private DcMotorEx shooterR, intake, shooterL;
+    private DcMotor leftFront, leftRear, rightFront, rightRear;
+
+    private DcMotorEx shooterR;
+    private DcMotorEx shooterL;
+    private DcMotorEx intake;
+
     private Servo leftIndex, rightIndex, flicker;
+    private ColorSensor colorSensor;
 
     private final double[] shootPositions = {0.31, 0.4, 0.49};
+    private final double[] intakePositions = {0.084, 0.174, 0.264};
+    private final String[] slots = {"unknown", "unknown", "unknown"};
+    private int currentIndex = 0;
+
     private final double flickerUp = 0.4;
     private final double flickerDown = 0.7;
 
@@ -26,21 +37,10 @@ public class RapidFireTest extends OpMode {
     private double lastLeftIndexPos = -1;
     private double lastRightIndexPos = -1;
 
-    private static final double TARGET_VELOCITY = 1400;
     private static final double VELOCITY_TOLERANCE = 20;
 
-    // ===== TURRET + TRACKING =====
-    private DcMotor turret;
-    private Limelight3A limelight;
-    private Follower follower;
-
-    private final int TURRET_MAX = 510;
-    private final int TURRET_MIN = -350;
-    private final double MAX_POWER_GOAL = 0.6;
-    private final double Kp_GOAL = 0.01;
-    private final double goalX = 0;
-    private final double goalY = 144;
-    private int turretZero = 0;
+    private long ignoreSensorUntil = 0;
+    private static final long SENSOR_IGNORE_MS = 800;
 
     private enum ShooterState {
         IDLE,
@@ -60,28 +60,50 @@ public class RapidFireTest extends OpMode {
     private long stateTimer = 0;
     private boolean lastA = false;
 
+    private DcMotor turret;
+    private Limelight3A limelight;
+    private Follower follower;
+
+    private final int TURRET_MAX = 510;
+    private final int TURRET_MIN = -350;
+    private final double MAX_POWER_GOAL = 0.6;
+    private final double Kp_GOAL = 0.01;
+    private final double goalX = 0;
+    private final double goalY = 144;
+    private int turretZero = 0;
+
+    private double[] distPoints = {30, 40, 80, 90};
+    private double[] powerPoints = {1300, 1430, 1900, 2000};
+
     @Override
     public void init() {
+        leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
+        leftRear   = hardwareMap.get(DcMotor.class, "leftRear");
+        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
+        rightRear  = hardwareMap.get(DcMotor.class, "rightRear");
+
+        leftFront.setDirection(DcMotor.Direction.REVERSE);
+        leftRear.setDirection(DcMotor.Direction.REVERSE);
+
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
-//        shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
+        shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
 
         shooterR.setDirection(DcMotor.Direction.REVERSE);
-
         shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//        shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+
+        intake = hardwareMap.get(DcMotorEx.class, "intake");
 
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
         flicker = hardwareMap.get(Servo.class, "flicker");
-        intake = hardwareMap.get(DcMotorEx.class, "intake");
 
+        colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
 
-
-        applyServoDeadzone(shootPositions[0]);
+        applyServoDeadzone(intakePositions[0]);
         flicker.setPosition(flickerDown);
 
-        // ===== TURRET INIT =====
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         turret.setDirection(DcMotor.Direction.REVERSE);
@@ -102,8 +124,39 @@ public class RapidFireTest extends OpMode {
     public void loop() {
         long now = System.currentTimeMillis();
 
-        boolean a = gamepad1.a;
+        double y = -gamepad2.left_stick_y;
+        double x = gamepad2.left_stick_x;
+        double rx = gamepad2.right_stick_x;
 
+        double lf = y + x + rx;
+        double lr = y - x + rx;
+        double rf = y - x - rx;
+        double rr = y + x - rx;
+
+        double max = Math.max(1.0,
+                Math.max(Math.abs(lf),
+                        Math.max(Math.abs(lr),
+                                Math.max(Math.abs(rf), Math.abs(rr)))));
+
+        leftFront.setPower(lf / max);
+        leftRear.setPower(lr / max);
+        rightFront.setPower(rf / max);
+        rightRear.setPower(rr / max);
+
+        boolean intakePressed = gamepad1.left_trigger > 0.1;
+        intake.setPower((intakePressed || shooterState != ShooterState.IDLE && shooterState != ShooterState.DONE) ? -1 : 0);
+
+        String detectedColor = detectColor();
+        if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && currentIndex < 3) {
+            slots[currentIndex] = detectedColor;
+            currentIndex++;
+            setSpindexIntakePosition(currentIndex);
+            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+        }
+
+        double targetVelocity = getShooterVelocityFromDistance();
+
+        boolean a = gamepad1.a;
         if (a && !lastA && shooterState == ShooterState.IDLE) {
             applyServoDeadzone(shootPositions[0]);
             shooterState = ShooterState.RAMPING;
@@ -115,16 +168,16 @@ public class RapidFireTest extends OpMode {
                 break;
 
             case RAMPING:
-                shooterR.setVelocity(TARGET_VELOCITY);
-                intake.setPower(-1);x
+                shooterR.setVelocity(targetVelocity);
+                shooterL.setVelocity(targetVelocity);
                 shooterState = ShooterState.WAIT_VELOCITY;
-                intake.setPower(-1);
                 break;
 
             case WAIT_VELOCITY:
-                shooterR.setVelocity(TARGET_VELOCITY);
+                shooterR.setVelocity(targetVelocity);
+                shooterL.setVelocity(targetVelocity);
 
-                if (Math.abs(shooterR.getVelocity() - TARGET_VELOCITY) < VELOCITY_TOLERANCE) {
+                if (Math.abs(shooterR.getVelocity() - targetVelocity) < VELOCITY_TOLERANCE) {
                     flicker.setPosition(flickerUp);
                     stateTimer = now + 200;
                     shooterState = ShooterState.FLICK1_UP;
@@ -142,7 +195,7 @@ public class RapidFireTest extends OpMode {
             case FLICK1_DOWN:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[1]);
-                    stateTimer = now + 500;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.SPINDEX2_WAIT;
                 }
                 break;
@@ -166,7 +219,7 @@ public class RapidFireTest extends OpMode {
             case FLICK2_DOWN:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[2]);
-                    stateTimer = now + 500;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.SPINDEX3_WAIT;
                 }
                 break;
@@ -189,8 +242,8 @@ public class RapidFireTest extends OpMode {
 
             case FLICK3_DOWN:
                 if (now >= stateTimer) {
-                    stateTimer = now + 900;
                     shooterR.setPower(0);
+                    shooterL.setPower(0);
                     intake.setPower(0);
                     shooterState = ShooterState.DONE;
                 }
@@ -202,7 +255,6 @@ public class RapidFireTest extends OpMode {
 
         lastA = a;
 
-        // ===== TURRET TRACKING LOOP (FROM TELEOP) =====
         follower.update();
         Pose robotPose = follower.getPoseTracker().getPose();
 
@@ -232,16 +284,33 @@ public class RapidFireTest extends OpMode {
 
         telemetry.addData("State", shooterState);
         telemetry.addData("Shooter Velocity", shooterR.getVelocity());
-        telemetry.addData("Turret Pos", turret.getCurrentPosition());
-        telemetry.addData("Turret Power", turretPower);
+        telemetry.addData("Target Velocity", targetVelocity);
+        telemetry.addData("Distance", getLimelightDistance());
         telemetry.update();
     }
 
     @Override
     public void stop() {
         shooterR.setPower(0);
+        shooterL.setPower(0);
         turret.setPower(0);
         limelight.stop();
+    }
+
+    private String detectColor() {
+        int r = colorSensor.red();
+        int g = colorSensor.green();
+        int b = colorSensor.blue();
+        if (g > 1.2 * r && g > 1.2 * b && g > 20) return "green";
+        int maxRB = Math.max(r, b);
+        int minRB = Math.min(r, b);
+        if (maxRB > 40 && minRB >= 0.5 * maxRB && g < 0.7 * maxRB) return "purple";
+        return "unknown";
+    }
+
+    private void setSpindexIntakePosition(int index) {
+        if (index >= intakePositions.length) index = intakePositions.length - 1;
+        applyServoDeadzone(intakePositions[index]);
     }
 
     private void applyServoDeadzone(double pos) {
@@ -261,5 +330,28 @@ public class RapidFireTest extends OpMode {
 
     private double clamp(double v, double min, double max) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    private double getLimelightDistance() {
+        LLResult result = limelight.getLatestResult();
+        if (result == null || !result.isValid()) return -1;
+        double ta = result.getTa();
+        double k = 50.0;
+        return k / Math.sqrt(ta); // just use whatever ta you get
+    }
+
+    private double getShooterVelocityFromDistance() {
+        double d = getLimelightDistance();
+        if (d < 0) return powerPoints[0];
+
+        for (int i = 0; i < distPoints.length - 1; i++) {
+            if (d >= distPoints[i] && d <= distPoints[i + 1]) {
+                double t = (d - distPoints[i]) / (distPoints[i + 1] - distPoints[i]);
+                return powerPoints[i] + t * (powerPoints[i + 1] - powerPoints[i]);
+            }
+        }
+
+        if (d < distPoints[0]) return powerPoints[0];
+        return powerPoints[powerPoints.length - 1];
     }
 }
