@@ -23,11 +23,11 @@ public class RapidFireAutoTest extends OpMode {
 
     private final double[] shootPositions = {0.31, 0.4, 0.49};
     private final double[] intakePositions = {0.084, 0.174, 0.264};
-    private final double flickerUp = 0.4;
+    private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
     private static final double VELOCITY_TOLERANCE = 20;
-    private static final double TARGET_VELOCITY = 1440;
+    private static final double TARGET_VELOCITY = 700;
 
     private boolean shooterStarted = false;
 
@@ -213,7 +213,7 @@ public class RapidFireAutoTest extends OpMode {
             case FLICK1_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(1);
-                    shootTimer = now + 500;
+                    shootTimer = now + 400;
                     shootState = ShootState.SPINDEX1_WAIT;
                 }
                 break;
@@ -237,7 +237,7 @@ public class RapidFireAutoTest extends OpMode {
             case FLICK2_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(2);
-                    shootTimer = now + 500;
+                    shootTimer = now + 400;
                     shootState = ShootState.SPINDEX2_WAIT;
                 }
                 break;
