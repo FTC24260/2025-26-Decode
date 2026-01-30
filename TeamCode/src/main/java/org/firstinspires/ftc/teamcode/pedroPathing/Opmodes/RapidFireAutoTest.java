@@ -12,16 +12,17 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "RapidFire_Auto_Test_Turret")
+@Autonomous(name = "RapidFire_Auto_IntakeSlots")
 public class RapidFireAutoTest extends OpMode {
 
     private Follower follower;
 
-    private DcMotorEx shooterR, shooterL;
+    private DcMotorEx shooterR, shooterL, intake;
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
     private final double[] shootPositions = {0.31, 0.4, 0.49};
+    private final double[] intakePositions = {0.084, 0.174, 0.264};
     private final double flickerUp = 0.4;
     private final double flickerDown = 0.7;
 
@@ -56,6 +57,15 @@ public class RapidFireAutoTest extends OpMode {
     private ShootState shootState = ShootState.IDLE;
     private long shootTimer = 0;
 
+    // Pickup poses
+    private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
+    private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
+    private final Pose pickup13Pose = new Pose(23, 84, Math.toRadians(180));
+
+    private PathChain[] pickupPaths;
+    private int pickupState = 0;
+    private boolean pickupStarted = false;
+
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
@@ -63,7 +73,6 @@ public class RapidFireAutoTest extends OpMode {
 
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
-
         shooterR.setDirection(DcMotor.Direction.REVERSE);
         shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -79,13 +88,23 @@ public class RapidFireAutoTest extends OpMode {
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turretZero = turret.getCurrentPosition();
 
+        intake = hardwareMap.get(DcMotorEx.class, "intake");
+
         setSpindex(0);
         flicker.setPosition(flickerDown);
 
+        // Shooting path
         pathToShoot = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, shootPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
                 .build();
+
+        // Pickup paths
+        pickupPaths = new PathChain[]{
+                follower.pathBuilder().addPath(new BezierLine(shootPose, pickup11Pose)).build(),
+                follower.pathBuilder().addPath(new BezierLine(pickup11Pose, pickup12Pose)).build(),
+                follower.pathBuilder().addPath(new BezierLine(pickup12Pose, pickup13Pose)).build()
+        };
     }
 
     @Override
@@ -105,16 +124,38 @@ public class RapidFireAutoTest extends OpMode {
         follower.update();
         updateTurret();
 
+        // Shooting phase
         if (pathState == 0 && !follower.isBusy()) {
             startShooting();
             pathState = 1;
         }
 
-        updateShooting(now);
+        if (shootState != ShootState.DONE) {
+            updateShooting(now);
+            return; // wait until shooting done
+        }
 
-        telemetry.addData("PathState", pathState);
+        // Pickup phase
+        if (!pickupStarted) {
+            pickupStarted = true;
+            pickupState = 0;
+            setSpindexIntakePosition(0); // move to first intake slot
+            intake.setPower(-1); // start intake
+            follower.followPath(pickupPaths[pickupState], true);
+        } else if (pickupState < pickupPaths.length) {
+            if (!follower.isBusy()) {
+                pickupState++;
+                if (pickupState < pickupPaths.length) {
+                    setSpindexIntakePosition(pickupState); // move spindex to next slot
+                    follower.followPath(pickupPaths[pickupState], true);
+                } else {
+                    intake.setPower(0); // stop intake after last pickup
+                }
+            }
+        }
+
         telemetry.addData("ShootState", shootState);
-        telemetry.addData("Velocity", shooterR.getVelocity());
+        telemetry.addData("PickupState", pickupState);
         telemetry.update();
     }
 
@@ -124,9 +165,7 @@ public class RapidFireAutoTest extends OpMode {
 
     private void updateShooting(long now) {
         switch (shootState) {
-
-            case IDLE:
-                break;
+            case IDLE: break;
 
             case WAIT_VELOCITY:
                 if (Math.abs(shooterR.getVelocity() - TARGET_VELOCITY) < VELOCITY_TOLERANCE) {
@@ -200,8 +239,7 @@ public class RapidFireAutoTest extends OpMode {
                 }
                 break;
 
-            case DONE:
-                break;
+            case DONE: break;
         }
     }
 
@@ -239,10 +277,17 @@ public class RapidFireAutoTest extends OpMode {
         rightIndex.setPosition(shootPositions[index]);
     }
 
+    private void setSpindexIntakePosition(int index) {
+        if (index >= intakePositions.length) index = intakePositions.length - 1;
+        leftIndex.setPosition(intakePositions[index]);
+        rightIndex.setPosition(intakePositions[index]);
+    }
+
     @Override
     public void stop() {
         shooterR.setPower(0);
         shooterL.setPower(0);
         turret.setPower(0);
+        intake.setPower(0);
     }
 }
