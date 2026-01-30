@@ -28,7 +28,8 @@ public class RapidFireAutoTest extends OpMode {
     private static final double VELOCITY_TOLERANCE = 20;
     private static final double TARGET_VELOCITY = 1440;
 
-    // ===== Turret constants (same as teleop) =====
+    private boolean shooterStarted = false;
+
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
@@ -91,6 +92,10 @@ public class RapidFireAutoTest extends OpMode {
     public void start() {
         follower.followPath(pathToShoot, true);
         pathState = 0;
+
+        shooterR.setVelocity(TARGET_VELOCITY);
+        shooterL.setVelocity(TARGET_VELOCITY);
+        shooterStarted = true;
     }
 
     @Override
@@ -98,8 +103,7 @@ public class RapidFireAutoTest extends OpMode {
         long now = System.currentTimeMillis();
 
         follower.update();
-
-        updateTurret(); // <<< turret tracking always running
+        updateTurret();
 
         if (pathState == 0 && !follower.isBusy()) {
             startShooting();
@@ -110,14 +114,11 @@ public class RapidFireAutoTest extends OpMode {
 
         telemetry.addData("PathState", pathState);
         telemetry.addData("ShootState", shootState);
-        telemetry.addData("TurretPos", turret.getCurrentPosition());
         telemetry.addData("Velocity", shooterR.getVelocity());
         telemetry.update();
     }
 
     private void startShooting() {
-        shooterR.setVelocity(TARGET_VELOCITY);
-        shooterL.setVelocity(TARGET_VELOCITY);
         shootState = ShootState.WAIT_VELOCITY;
     }
 
@@ -128,9 +129,6 @@ public class RapidFireAutoTest extends OpMode {
                 break;
 
             case WAIT_VELOCITY:
-                shooterR.setVelocity(TARGET_VELOCITY);
-                shooterL.setVelocity(TARGET_VELOCITY);
-
                 if (Math.abs(shooterR.getVelocity() - TARGET_VELOCITY) < VELOCITY_TOLERANCE) {
                     flicker.setPosition(flickerUp);
                     shootTimer = now + 200;
@@ -207,7 +205,6 @@ public class RapidFireAutoTest extends OpMode {
         }
     }
 
-    // ===== Turret Tracking =====
     private void updateTurret() {
         Pose robotPose = follower.getPose();
 
