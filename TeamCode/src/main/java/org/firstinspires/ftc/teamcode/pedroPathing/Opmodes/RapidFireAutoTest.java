@@ -26,28 +26,39 @@ public class RapidFireAutoTest extends OpMode {
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double VELOCITY_TOLERANCE = 20;
-    private static final double TARGET_VELOCITY = 700;
-
-    private boolean shooterStarted = false;
+    private static final double SHOOTER_VELOCITY = 1340;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-    private final double goalX = 12;
+    private final double goalX = 20;
     private final double goalY = 144;
-    private int turretZero = 0;
+    private int turretZero;
 
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
     private Pose shootPose = new Pose(60, 84, Math.toRadians(180));
-    private PathChain pathToShoot;
 
-    private int pathState = 0;
+    private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
+    private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
+    private final Pose pickup13Pose = new Pose(23, 84, Math.toRadians(180));
+
+    private final Pose pickup21Pose = new Pose(38, 60, Math.toRadians(180));
+    private final Pose pickup22Pose = new Pose(32, 60, Math.toRadians(180));
+    private final Pose pickup23Pose = new Pose(20, 60, Math.toRadians(180));
+
+    private PathChain pathToShoot;
+    private PathChain[] pickupPaths1;
+    private PathChain[] pickupPaths2;
+    private PathChain returnToShootPath;
+
+    private int cycle = 0;
+    private int pickupState = 0;
+    private boolean pickupStarted = false;
+    private boolean returningToShoot = false;
 
     private enum ShootState {
         IDLE,
-        WAIT_VELOCITY,
         FLICK1_UP, FLICK1_DOWN, SPINDEX1_WAIT,
         FLICK2_UP, FLICK2_DOWN, SPINDEX2_WAIT,
         FLICK3_UP, FLICK3_DOWN,
@@ -55,19 +66,7 @@ public class RapidFireAutoTest extends OpMode {
     }
 
     private ShootState shootState = ShootState.IDLE;
-    private long shootTimer = 0;
-
-    // Pickup poses
-    private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
-    private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
-    private final Pose pickup13Pose = new Pose(23, 84, Math.toRadians(180));
-
-    private PathChain[] pickupPaths;
-    private int pickupState = 0;
-    private boolean pickupStarted = false;
-
-    private PathChain returnToShootPath;
-    private boolean returningToShoot = false;
+    private long shootTimer;
 
     @Override
     public void init() {
@@ -80,6 +79,8 @@ public class RapidFireAutoTest extends OpMode {
         shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+        intake = hardwareMap.get(DcMotorEx.class, "intake");
+
         leftIndex = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
         flicker = hardwareMap.get(Servo.class, "flicker");
@@ -91,35 +92,33 @@ public class RapidFireAutoTest extends OpMode {
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turretZero = turret.getCurrentPosition();
 
-        intake = hardwareMap.get(DcMotorEx.class, "intake");
-
         setSpindex(0);
         flicker.setPosition(flickerDown);
 
-        // Shooting path
         pathToShoot = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, shootPose))
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
                 .build();
 
-        // Pickup paths
-        pickupPaths = new PathChain[]{
+        pickupPaths1 = new PathChain[]{
                 follower.pathBuilder().addPath(new BezierLine(shootPose, pickup11Pose)).build(),
                 follower.pathBuilder().addPath(new BezierLine(pickup11Pose, pickup12Pose)).build(),
                 follower.pathBuilder().addPath(new BezierLine(pickup12Pose, pickup13Pose)).build()
+        };
+
+        pickupPaths2 = new PathChain[]{
+                follower.pathBuilder().addPath(new BezierLine(shootPose, pickup21Pose)).build(),
+                follower.pathBuilder().addPath(new BezierLine(pickup21Pose, pickup22Pose)).build(),
+                follower.pathBuilder().addPath(new BezierLine(pickup22Pose, pickup23Pose)).build()
         };
     }
 
     @Override
     public void start() {
         follower.followPath(pathToShoot, true);
-        pathState = 0;
-
-        shooterR.setVelocity(TARGET_VELOCITY);
-        shooterL.setVelocity(TARGET_VELOCITY);
-        shooterStarted = true;
-
-        intake.setPower(-1); // Intake runs entire auto
+        shooterR.setVelocity(SHOOTER_VELOCITY);
+        shooterL.setVelocity(SHOOTER_VELOCITY);
+        intake.setPower(-1);
     }
 
     @Override
@@ -129,79 +128,59 @@ public class RapidFireAutoTest extends OpMode {
         follower.update();
         updateTurret();
 
-        // First shooting phase
-        if (pathState == 0 && !follower.isBusy()) {
-            startShooting();
-            pathState = 1;
-        }
-
-        if (shootState != ShootState.DONE && !returningToShoot) {
-            updateShooting(now);
-            return; // wait until first shooting done
-        }
-
-        // Pickup phase
-        if (!pickupStarted) {
-            pickupStarted = true;
-            pickupState = 0;
-            setSpindexIntakePosition(0); // move to first intake slot
-            follower.followPath(pickupPaths[pickupState], true);
-        } else if (pickupState < pickupPaths.length) {
-            if (!follower.isBusy()) {
-                pickupState++;
-                if (pickupState < pickupPaths.length) {
-                    setSpindexIntakePosition(pickupState); // move spindex to next intake slot
-                    follower.followPath(pickupPaths[pickupState], true);
-                } else {
-                    // Start returning to shoot
-                    returnToShootPath = follower.pathBuilder()
-                            .addPath(new BezierLine(pickup13Pose, shootPose))
-                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
-                            .build();
-                    follower.followPath(returnToShootPath, true);
-                    returningToShoot = true;
-                    shooterR.setVelocity(TARGET_VELOCITY);
-                    shooterL.setVelocity(TARGET_VELOCITY);
-                    shootState = ShootState.IDLE; // reset shooting state for second shot
-
-                    // Move spindex to shoot position while driving
-                    setSpindex(0);
-                }
-            }
-        }
-
-        // Second shooting phase
-        if (returningToShoot && !follower.isBusy() && shootState == ShootState.IDLE) {
-            startShooting();
-            returningToShoot = false; // done returning
+        if (shootState == ShootState.IDLE && !follower.isBusy()) {
+            flicker.setPosition(flickerUp);
+            shootTimer = now + 200;
+            shootState = ShootState.FLICK1_UP;
         }
 
         if (shootState != ShootState.DONE) {
             updateShooting(now);
+            return;
         }
 
-        telemetry.addData("ShootState", shootState);
-        telemetry.addData("PickupState", pickupState);
-        telemetry.addData("ReturningToShoot", returningToShoot);
-        telemetry.update();
-    }
+        if (!pickupStarted) {
+            pickupStarted = true;
+            pickupState = 0;
+            setSpindexIntakePosition(0);
 
-    private void startShooting() {
-        shootState = ShootState.WAIT_VELOCITY;
+            if (cycle == 0) follower.followPath(pickupPaths1[0], true);
+            else follower.followPath(pickupPaths2[0], true);
+        }
+
+        PathChain[] active = (cycle == 0) ? pickupPaths1 : pickupPaths2;
+
+        if (pickupStarted && pickupState < active.length && !follower.isBusy()) {
+            pickupState++;
+            if (pickupState < active.length) {
+                setSpindexIntakePosition(pickupState);
+                follower.followPath(active[pickupState], true);
+            } else {
+                Pose last = (cycle == 0) ? pickup13Pose : pickup23Pose;
+                returnToShootPath = follower.pathBuilder()
+                        .addPath(new BezierLine(last, shootPose))
+                        .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
+                        .build();
+                follower.followPath(returnToShootPath, true);
+                returningToShoot = true;
+                setSpindex(0);
+            }
+        }
+
+        if (returningToShoot && !follower.isBusy()) {
+            flicker.setPosition(flickerUp);
+            shootTimer = now + 200;
+            shootState = ShootState.FLICK1_UP;
+
+            pickupStarted = false;
+            returningToShoot = false;
+            pickupState = 0;
+            cycle++;
+        }
     }
 
     private void updateShooting(long now) {
         switch (shootState) {
-            case IDLE: break;
-
-            case WAIT_VELOCITY:
-                if (Math.abs(shooterR.getVelocity() - TARGET_VELOCITY) < VELOCITY_TOLERANCE) {
-                    flicker.setPosition(flickerUp);
-                    shootTimer = now + 200;
-                    shootState = ShootState.FLICK1_UP;
-                }
-                break;
-
             case FLICK1_UP:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerDown);
@@ -260,13 +239,9 @@ public class RapidFireAutoTest extends OpMode {
 
             case FLICK3_DOWN:
                 if (now >= shootTimer) {
-                    shooterR.setPower(0);
-                    shooterL.setPower(0);
                     shootState = ShootState.DONE;
                 }
                 break;
-
-            case DONE: break;
         }
     }
 
@@ -299,13 +274,11 @@ public class RapidFireAutoTest extends OpMode {
     }
 
     private void setSpindex(int index) {
-        if (index >= shootPositions.length) index = shootPositions.length - 1;
         leftIndex.setPosition(shootPositions[index]);
         rightIndex.setPosition(shootPositions[index]);
     }
 
     private void setSpindexIntakePosition(int index) {
-        if (index >= intakePositions.length) index = intakePositions.length - 1;
         leftIndex.setPosition(intakePositions[index]);
         rightIndex.setPosition(intakePositions[index]);
     }
