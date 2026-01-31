@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.pedroPathing.Opmodes;
 
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
@@ -13,7 +14,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @Autonomous(name = "RapidFire_Auto_IntakeSlots")
-public class RapidFireAutoTest extends OpMode {
+public class Arti12BlueFront extends OpMode {
 
     private Follower follower;
 
@@ -32,7 +33,7 @@ public class RapidFireAutoTest extends OpMode {
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-    private final double goalX = 20;
+    private final double goalX = 17;
     private final double goalY = 144;
     private int turretZero;
 
@@ -41,15 +42,22 @@ public class RapidFireAutoTest extends OpMode {
 
     private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
     private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
-    private final Pose pickup13Pose = new Pose(23, 84, Math.toRadians(180));
+    private final Pose pickup13Pose = new Pose(23 , 84, Math.toRadians(180));
 
-    private final Pose pickup21Pose = new Pose(38, 60, Math.toRadians(180));
-    private final Pose pickup22Pose = new Pose(32, 60, Math.toRadians(180));
-    private final Pose pickup23Pose = new Pose(20, 60, Math.toRadians(180));
+    private final Pose pickup21Pose = new Pose(35, 60, Math.toRadians(180));
+    private final Pose pickup22Pose = new Pose(28, 60, Math.toRadians(180));
+    private final Pose pickup23Pose = new Pose(23 , 60, Math.toRadians(180));
+    private final Pose pickup21Control = new Pose(53, 52);
+
+    private final Pose pickup31Pose = new Pose(35, 36, Math.toRadians(180));
+    private final Pose pickup32Pose = new Pose(28, 36, Math.toRadians(180));
+    private final Pose pickup33Pose = new Pose(23 , 36, Math.toRadians(180));
+    private final Pose pickup31Control = new Pose(48, 48);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
     private PathChain[] pickupPaths2;
+    private PathChain[] pickupPaths3;
     private PathChain returnToShootPath;
 
     private int cycle = 0;
@@ -107,9 +115,17 @@ public class RapidFireAutoTest extends OpMode {
         };
 
         pickupPaths2 = new PathChain[]{
-                follower.pathBuilder().addPath(new BezierLine(shootPose, pickup21Pose)).build(),
+                follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup21Control, pickup21Pose))
+                        .setConstantHeadingInterpolation(pickup21Pose.getHeading()).build(),
                 follower.pathBuilder().addPath(new BezierLine(pickup21Pose, pickup22Pose)).build(),
                 follower.pathBuilder().addPath(new BezierLine(pickup22Pose, pickup23Pose)).build()
+        };
+
+        pickupPaths3 = new PathChain[]{
+                follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup31Control, pickup31Pose))
+                        .setConstantHeadingInterpolation(pickup31Pose.getHeading()).build(),
+                follower.pathBuilder().addPath(new BezierLine(pickup31Pose, pickup32Pose)).build(),
+                follower.pathBuilder().addPath(new BezierLine(pickup32Pose, pickup33Pose)).build()
         };
     }
 
@@ -139,16 +155,17 @@ public class RapidFireAutoTest extends OpMode {
             return;
         }
 
+        PathChain[] active;
+        if (cycle == 0) active = pickupPaths1;
+        else if (cycle == 1) active = pickupPaths2;
+        else active = pickupPaths3;
+
         if (!pickupStarted) {
             pickupStarted = true;
             pickupState = 0;
             setSpindexIntakePosition(0);
-
-            if (cycle == 0) follower.followPath(pickupPaths1[0], true);
-            else follower.followPath(pickupPaths2[0], true);
+            follower.followPath(active[0], true);
         }
-
-        PathChain[] active = (cycle == 0) ? pickupPaths1 : pickupPaths2;
 
         if (pickupStarted && pickupState < active.length && !follower.isBusy()) {
             pickupState++;
@@ -156,7 +173,7 @@ public class RapidFireAutoTest extends OpMode {
                 setSpindexIntakePosition(pickupState);
                 follower.followPath(active[pickupState], true);
             } else {
-                Pose last = (cycle == 0) ? pickup13Pose : pickup23Pose;
+                Pose last = (cycle == 0) ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
                 returnToShootPath = follower.pathBuilder()
                         .addPath(new BezierLine(last, shootPose))
                         .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
