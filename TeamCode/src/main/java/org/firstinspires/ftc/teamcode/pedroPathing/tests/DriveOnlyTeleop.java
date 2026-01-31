@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @Configurable
-@TeleOp
+//@TeleOp
 public class DriveOnlyTeleop extends OpMode {
 
     private Follower follower;

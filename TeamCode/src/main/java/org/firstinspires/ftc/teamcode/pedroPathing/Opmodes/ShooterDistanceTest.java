@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior;
 import com.qualcomm.robotcore.hardware.Servo;
 
-@TeleOp(name = "SingleBallTest")
+//@TeleOp(name = "SingleBallTest")
 public class ShooterDistanceTest extends OpMode {
 
     private DcMotor intake;
