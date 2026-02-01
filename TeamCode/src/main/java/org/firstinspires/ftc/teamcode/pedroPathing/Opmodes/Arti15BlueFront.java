@@ -13,8 +13,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "12 Blue Front")
-public class Arti12BlueFront extends OpMode {
+@Autonomous(name = "15 Blue Front")
+public class Arti15BlueFront extends OpMode {
 
     private Follower follower;
 
@@ -40,30 +40,35 @@ public class Arti12BlueFront extends OpMode {
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
     private Pose shootPose = new Pose(60, 84, Math.toRadians(180));
 
-    private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
-    private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
-    private final Pose pickup13Pose = new Pose(23 , 84, Math.toRadians(180));
+    private final Pose pickup1Ready = new Pose(40, 84, Math.toRadians(180));
+    private final Pose pickup1 = new Pose(23, 84, Math.toRadians(180));
 
-    private final Pose pickup21Pose = new Pose(35, 60, Math.toRadians(180));
-    private final Pose pickup22Pose = new Pose(28, 60, Math.toRadians(180));
-    private final Pose pickup23Pose = new Pose(23 , 60, Math.toRadians(180));
-    private final Pose pickup21Control = new Pose(53, 52);
+    private final Pose pickup2Ready = new Pose(40, 60, Math.toRadians(180));
+    private final Pose pickup2 = new Pose(23, 60, Math.toRadians(180));
+    private final Pose pickup2Control = new Pose(53, 52);
 
-    private final Pose pickup31Pose = new Pose(35, 36, Math.toRadians(180));
-    private final Pose pickup32Pose = new Pose(28, 36, Math.toRadians(180));
-    private final Pose pickup33Pose = new Pose(23 , 36, Math.toRadians(180));
-    private final Pose pickup31Control = new Pose(48, 48);
+    private final Pose pickup3Ready = new Pose(40, 36, Math.toRadians(180));
+    private final Pose pickup3 = new Pose(23, 36, Math.toRadians(180));
+    private final Pose pickup3Control = new Pose(48, 48);
 
     private PathChain pathToShoot;
-    private PathChain[] pickupPaths1;
-    private PathChain[] pickupPaths2;
-    private PathChain[] pickupPaths3;
+    private PathChain[][] pickupCycles;
     private PathChain returnToShootPath;
 
     private int cycle = 0;
     private int pickupState = 0;
     private boolean pickupStarted = false;
     private boolean returningToShoot = false;
+
+    private enum IntakeSpindexState {
+        TO_SLOT_0,
+        WAIT_FOR_36,
+        WAIT_70MS,
+        DONE
+    }
+
+    private IntakeSpindexState intakeSpindexState = IntakeSpindexState.DONE;
+    private long spindexTimer = 0;
 
     private enum ShootState {
         IDLE,
@@ -108,24 +113,21 @@ public class Arti12BlueFront extends OpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
                 .build();
 
-        pickupPaths1 = new PathChain[]{
-                follower.pathBuilder().addPath(new BezierLine(shootPose, pickup11Pose)).build(),
-                follower.pathBuilder().addPath(new BezierLine(pickup11Pose, pickup12Pose)).build(),
-                follower.pathBuilder().addPath(new BezierLine(pickup12Pose, pickup13Pose)).build()
-        };
-
-        pickupPaths2 = new PathChain[]{
-                follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup21Control, pickup21Pose))
-                        .setConstantHeadingInterpolation(pickup21Pose.getHeading()).build(),
-                follower.pathBuilder().addPath(new BezierLine(pickup21Pose, pickup22Pose)).build(),
-                follower.pathBuilder().addPath(new BezierLine(pickup22Pose, pickup23Pose)).build()
-        };
-
-        pickupPaths3 = new PathChain[]{
-                follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup31Control, pickup31Pose))
-                        .setConstantHeadingInterpolation(pickup31Pose.getHeading()).build(),
-                follower.pathBuilder().addPath(new BezierLine(pickup31Pose, pickup32Pose)).build(),
-                follower.pathBuilder().addPath(new BezierLine(pickup32Pose, pickup33Pose)).build()
+        pickupCycles = new PathChain[][]{
+                {
+                        follower.pathBuilder().addPath(new BezierLine(shootPose, pickup1Ready)).build(),
+                        follower.pathBuilder().addPath(new BezierLine(pickup1Ready, pickup1)).build()
+                },
+                {
+                        follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup2Control, pickup2Ready))
+                                .setConstantHeadingInterpolation(pickup2Ready.getHeading()).build(),
+                        follower.pathBuilder().addPath(new BezierLine(pickup2Ready, pickup2)).build()
+                },
+                {
+                        follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup3Control, pickup3Ready))
+                                .setConstantHeadingInterpolation(pickup3Ready.getHeading()).build(),
+                        follower.pathBuilder().addPath(new BezierLine(pickup3Ready, pickup3)).build()
+                }
         };
     }
 
@@ -134,7 +136,6 @@ public class Arti12BlueFront extends OpMode {
         follower.followPath(pathToShoot, true);
         shooterR.setVelocity(SHOOTER_VELOCITY);
         shooterL.setVelocity(SHOOTER_VELOCITY);
-        intake.setPower(-1);
     }
 
     @Override
@@ -155,29 +156,58 @@ public class Arti12BlueFront extends OpMode {
             return;
         }
 
-        PathChain[] active;
-        if (cycle == 0) active = pickupPaths1;
-        else if (cycle == 1) active = pickupPaths2;
-        else active = pickupPaths3;
+        PathChain[] active = pickupCycles[cycle];
 
         if (!pickupStarted) {
             pickupStarted = true;
             pickupState = 0;
+
+            intakeSpindexState = IntakeSpindexState.TO_SLOT_0;
             setSpindexIntakePosition(0);
+
+            intake.setPower(0);
             follower.followPath(active[0], true);
         }
 
-        if (pickupStarted && pickupState < active.length && !follower.isBusy()) {
+        switch (intakeSpindexState) {
+            case TO_SLOT_0:
+                intakeSpindexState = IntakeSpindexState.WAIT_FOR_36;
+                break;
+
+            case WAIT_FOR_36:
+                if (follower.getPose().getX() < 35.5) {
+                    setSpindexIntakePosition(1);
+                    spindexTimer = now + 200;
+                    intakeSpindexState = IntakeSpindexState.WAIT_70MS;
+                }
+                break;
+
+            case WAIT_70MS:
+                if (now >= spindexTimer) {
+                    setSpindexIntakePosition(2);
+                    intakeSpindexState = IntakeSpindexState.DONE;
+                }
+                break;
+
+            case DONE:
+                break;
+        }
+
+        if (pickupStarted && !follower.isBusy()) {
             pickupState++;
-            if (pickupState < active.length) {
-                setSpindexIntakePosition(pickupState);
-                follower.followPath(active[pickupState], true);
+
+            if (pickupState == 1) {
+                intake.setPower(-1);
+                follower.followPath(active[1], true);
             } else {
-                Pose last = (cycle == 0) ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
+                intake.setPower(0);
+                Pose last = cycle == 0 ? pickup1 : cycle == 1 ? pickup2 : pickup3;
+
                 returnToShootPath = follower.pathBuilder()
                         .addPath(new BezierLine(last, shootPose))
                         .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
                         .build();
+
                 follower.followPath(returnToShootPath, true);
                 returningToShoot = true;
                 setSpindex(0);
