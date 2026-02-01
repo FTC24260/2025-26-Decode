@@ -22,8 +22,8 @@ public class Arti12BlueFront extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
-    private final double[] intakePositions = {0.31, 0.4, 0.49};
-    private final double[] shootPositions = {0.084, 0.174, 0.264};
+    private final double[] shootPositions = {0.31, 0.4, 0.49};
+    private final double[] intakePositions = {0.084, 0.174, 0.264};
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
