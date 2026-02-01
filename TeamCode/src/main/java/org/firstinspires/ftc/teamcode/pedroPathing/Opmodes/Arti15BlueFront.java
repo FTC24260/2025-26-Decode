@@ -22,23 +22,23 @@ public class Arti15BlueFront extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
-    private final double[] intakePositions = {0.31, 0.4, 0.49};
-    private final double[] shootPositions = {0.084, 0.174, 0.264};
+    private final double[] shootPositions = {0.31, 0.4, 0.49};
+    private final double[] intakePositions = {0.084, 0.174, 0.264};
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double SHOOTER_VELOCITY = 1340;
+    private static final double SHOOTER_VELOCITY = 1310;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-    private final double goalX = 17;
+    private final double goalX = 14;
     private final double goalY = 144;
     private int turretZero;
 
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
-    private Pose shootPose = new Pose(60, 84, Math.toRadians(180));
+    private Pose shootPose = new Pose(55, 84, Math.toRadians(180));
 
     private final Pose pickup1Ready = new Pose(40, 84, Math.toRadians(180));
     private final Pose pickup1 = new Pose(23, 84, Math.toRadians(180));
@@ -175,7 +175,7 @@ public class Arti15BlueFront extends OpMode {
                 break;
 
             case WAIT_FOR_36:
-                if (follower.getPose().getX() < 35.5) {
+                if (follower.getPose().getX() < 34) {
                     setSpindexIntakePosition(1);
                     spindexTimer = now + 200;
                     intakeSpindexState = IntakeSpindexState.WAIT_70MS;
@@ -230,8 +230,9 @@ public class Arti15BlueFront extends OpMode {
         switch (shootState) {
             case FLICK1_UP:
                 if (now >= shootTimer) {
+                    intake.setPower(-1);
                     flicker.setPosition(flickerDown);
-                    shootTimer = now + 200;
+                    shootTimer = now + 175;
                     shootState = ShootState.FLICK1_DOWN;
                 }
                 break;
@@ -239,7 +240,7 @@ public class Arti15BlueFront extends OpMode {
             case FLICK1_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(1);
-                    shootTimer = now + 400;
+                    shootTimer = now + 320;
                     shootState = ShootState.SPINDEX1_WAIT;
                 }
                 break;
@@ -247,7 +248,7 @@ public class Arti15BlueFront extends OpMode {
             case SPINDEX1_WAIT:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerUp);
-                    shootTimer = now + 200;
+                    shootTimer = now + 175;
                     shootState = ShootState.FLICK2_UP;
                 }
                 break;
@@ -255,7 +256,7 @@ public class Arti15BlueFront extends OpMode {
             case FLICK2_UP:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerDown);
-                    shootTimer = now + 200;
+                    shootTimer = now + 175;
                     shootState = ShootState.FLICK2_DOWN;
                 }
                 break;
@@ -263,7 +264,7 @@ public class Arti15BlueFront extends OpMode {
             case FLICK2_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(2);
-                    shootTimer = now + 400;
+                    shootTimer = now + 320;
                     shootState = ShootState.SPINDEX2_WAIT;
                 }
                 break;
@@ -271,7 +272,7 @@ public class Arti15BlueFront extends OpMode {
             case SPINDEX2_WAIT:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerUp);
-                    shootTimer = now + 200;
+                    shootTimer = now + 175;
                     shootState = ShootState.FLICK3_UP;
                 }
                 break;
@@ -286,6 +287,7 @@ public class Arti15BlueFront extends OpMode {
 
             case FLICK3_DOWN:
                 if (now >= shootTimer) {
+                    intake.setPower(0);
                     shootState = ShootState.DONE;
                 }
                 break;
