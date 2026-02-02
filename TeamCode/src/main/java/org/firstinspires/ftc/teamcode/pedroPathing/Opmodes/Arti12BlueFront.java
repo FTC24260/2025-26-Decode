@@ -54,7 +54,7 @@ public class Arti12BlueFront extends OpMode {
     private final Pose pickup33Pose = new Pose(24, 36, Math.toRadians(180));
     private final Pose pickup31Control = new Pose(48, 48);
 
-    private final Pose gatePose = new Pose(18, 76, Math.toRadians(180));
+    private final Pose gatePose = new Pose(18, 78, Math.toRadians(180));
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
