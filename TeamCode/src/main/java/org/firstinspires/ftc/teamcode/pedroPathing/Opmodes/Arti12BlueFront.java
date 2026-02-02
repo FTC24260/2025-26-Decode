@@ -27,7 +27,7 @@ public class Arti12BlueFront extends OpMode {
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double SHOOTER_VELOCITY = 1300;
+    private static final double SHOOTER_VELOCITY = 1330;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
@@ -38,21 +38,23 @@ public class Arti12BlueFront extends OpMode {
     private int turretZero;
 
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
-    private Pose shootPose = new Pose(55, 84, Math.toRadians(180));
+    private Pose shootPose = new Pose(58, 84, Math.toRadians(180));
 
-    private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
-    private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
-    private final Pose pickup13Pose = new Pose(23 , 84, Math.toRadians(180));
+    private final Pose pickup11Pose = new Pose(36, 84, Math.toRadians(180));
+    private final Pose pickup12Pose = new Pose(29, 84, Math.toRadians(180));
+    private final Pose pickup13Pose = new Pose(24, 84, Math.toRadians(180));
 
-    private final Pose pickup21Pose = new Pose(35, 60, Math.toRadians(180));
-    private final Pose pickup22Pose = new Pose(28, 60, Math.toRadians(180));
-    private final Pose pickup23Pose = new Pose(23 , 60, Math.toRadians(180));
+    private final Pose pickup21Pose = new Pose(36, 60, Math.toRadians(180));
+    private final Pose pickup22Pose = new Pose(29, 60, Math.toRadians(180));
+    private final Pose pickup23Pose = new Pose(24, 60, Math.toRadians(180));
     private final Pose pickup21Control = new Pose(53, 52);
 
-    private final Pose pickup31Pose = new Pose(35, 36, Math.toRadians(180));
-    private final Pose pickup32Pose = new Pose(28, 36, Math.toRadians(180));
-    private final Pose pickup33Pose = new Pose(23 , 36, Math.toRadians(180));
+    private final Pose pickup31Pose = new Pose(36, 36, Math.toRadians(180));
+    private final Pose pickup32Pose = new Pose(29, 36, Math.toRadians(180));
+    private final Pose pickup33Pose = new Pose(24, 36, Math.toRadians(180));
     private final Pose pickup31Control = new Pose(48, 48);
+
+    private final Pose gatePose = new Pose(18, 76, Math.toRadians(180));
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
@@ -174,10 +176,21 @@ public class Arti12BlueFront extends OpMode {
                 follower.followPath(active[pickupState], true);
             } else {
                 Pose last = (cycle == 0) ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
-                returnToShootPath = follower.pathBuilder()
-                        .addPath(new BezierLine(last, shootPose))
-                        .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
-                        .build();
+
+                if (cycle == 0) {
+                    returnToShootPath = follower.pathBuilder()
+                            .addPath(new BezierLine(pickup13Pose, gatePose))
+                            .setConstantHeadingInterpolation(pickup13Pose.getHeading())
+                            .addPath(new BezierLine(gatePose, shootPose))
+                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
+                            .build();
+                } else {
+                    returnToShootPath = follower.pathBuilder()
+                            .addPath(new BezierLine(last, shootPose))
+                            .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
+                            .build();
+                }
+
                 follower.followPath(returnToShootPath, true);
                 returningToShoot = true;
                 setSpindex(0);
