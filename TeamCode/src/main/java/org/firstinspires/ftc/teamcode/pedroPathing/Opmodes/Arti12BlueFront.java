@@ -27,7 +27,7 @@ public class Arti12BlueFront extends OpMode {
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double SHOOTER_VELOCITY = 1330;
+    private static final double SHOOTER_VELOCITY = 1320;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
@@ -66,6 +66,9 @@ public class Arti12BlueFront extends OpMode {
     private int pickupState = 0;
     private boolean pickupStarted = false;
     private boolean returningToShoot = false;
+
+    private boolean preloadDelayDone = false;
+    private long preloadDelayEnd = 0;
 
     private enum ShootState {
         IDLE,
@@ -147,9 +150,16 @@ public class Arti12BlueFront extends OpMode {
         updateTurret();
 
         if (shootState == ShootState.IDLE && !follower.isBusy()) {
-            flicker.setPosition(flickerUp);
-            shootTimer = now + 200;
-            shootState = ShootState.FLICK1_UP;
+            if (!preloadDelayDone) {
+                preloadDelayEnd = now + 500;
+                preloadDelayDone = true;
+                return;
+            }
+            if (now >= preloadDelayEnd) {
+                flicker.setPosition(flickerUp);
+                shootTimer = now + 200;
+                shootState = ShootState.FLICK1_UP;
+            }
         }
 
         if (shootState != ShootState.DONE) {
@@ -222,7 +232,7 @@ public class Arti12BlueFront extends OpMode {
             case FLICK1_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(1);
-                    shootTimer = now + 400;
+                    shootTimer = now + 800;
                     shootState = ShootState.SPINDEX1_WAIT;
                 }
                 break;
@@ -246,7 +256,7 @@ public class Arti12BlueFront extends OpMode {
             case FLICK2_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(2);
-                    shootTimer = now + 400;
+                    shootTimer = now + 800;
                     shootState = ShootState.SPINDEX2_WAIT;
                 }
                 break;
