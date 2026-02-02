@@ -15,7 +15,6 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @TeleOp(name = "Teleop")
 public class Teleop extends OpMode {
-
     private DcMotor leftFront, leftRear, rightFront, rightRear;
 
     private DcMotorEx shooterR;
@@ -72,8 +71,9 @@ public class Teleop extends OpMode {
     private final double goalY = 144;
     private int turretZero = 0;
 
-    private double[] distPoints = {30, 40, 80, 90};
-    private double[] powerPoints = {1300, 1430, 1900, 2000};
+    private double[] distPoints = {40, 60, 80, 100};
+    private double[] powerPoints = {1210, 1380, 1500, 1700};
+    private static final double FALLBACK_SHOOTER_VELOCITY = 1700;
 
     @Override
     public void init() {
@@ -113,7 +113,7 @@ public class Teleop extends OpMode {
         limelight.start();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(68, 81, Math.PI / 2));
+        follower.setStartingPose(new Pose(75, 20, Math.PI / 2));
 
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -154,7 +154,14 @@ public class Teleop extends OpMode {
             ignoreSensorUntil = now + SENSOR_IGNORE_MS;
         }
 
-        double targetVelocity = getShooterVelocityFromDistance();
+        double limelightDistance = getLimelightDistance();
+
+        double targetVelocity;
+        if (gamepad1.a && limelightDistance < 0) {
+            targetVelocity = FALLBACK_SHOOTER_VELOCITY;
+        } else {
+            targetVelocity = getShooterVelocityFromDistance();
+        }
 
         boolean a = gamepad1.a;
         if (a && !lastA && shooterState == ShooterState.IDLE) {
@@ -179,7 +186,7 @@ public class Teleop extends OpMode {
 
                 if (Math.abs(shooterR.getVelocity() - targetVelocity) < VELOCITY_TOLERANCE) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 200;
+                    stateTimer = now + 170;
                     shooterState = ShooterState.FLICK1_UP;
                 }
                 break;
@@ -187,7 +194,7 @@ public class Teleop extends OpMode {
             case FLICK1_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 200;
+                    stateTimer = now + 170;
                     shooterState = ShooterState.FLICK1_DOWN;
                 }
                 break;
@@ -195,7 +202,7 @@ public class Teleop extends OpMode {
             case FLICK1_DOWN:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[1]);
-                    stateTimer = now + 400;
+                    stateTimer = now + 350;
                     shooterState = ShooterState.SPINDEX2_WAIT;
                 }
                 break;
@@ -203,7 +210,7 @@ public class Teleop extends OpMode {
             case SPINDEX2_WAIT:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 200;
+                    stateTimer = now + 170;
                     shooterState = ShooterState.FLICK2_UP;
                 }
                 break;
@@ -211,7 +218,7 @@ public class Teleop extends OpMode {
             case FLICK2_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 200;
+                    stateTimer = now + 350;
                     shooterState = ShooterState.FLICK2_DOWN;
                 }
                 break;
@@ -219,7 +226,7 @@ public class Teleop extends OpMode {
             case FLICK2_DOWN:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[2]);
-                    stateTimer = now + 400;
+                    stateTimer = now + 170;
                     shooterState = ShooterState.SPINDEX3_WAIT;
                 }
                 break;
@@ -245,7 +252,8 @@ public class Teleop extends OpMode {
                     shooterR.setPower(0);
                     shooterL.setPower(0);
                     intake.setPower(0);
-                    shooterState = ShooterState.DONE;
+                    resetToIntake();
+                    shooterState = ShooterState.IDLE;
                 }
                 break;
 
@@ -339,6 +347,14 @@ public class Teleop extends OpMode {
         double k = 50.0;
         return k / Math.sqrt(ta); // just use whatever ta you get
     }
+
+    private void resetToIntake() {
+        currentIndex = 0;
+        for (int i = 0; i < slots.length; i++) slots[i] = "unknown";
+        applyServoDeadzone(intakePositions[0]);
+        ignoreSensorUntil = System.currentTimeMillis() + SENSOR_IGNORE_MS;
+    }
+
 
     private double getShooterVelocityFromDistance() {
         double d = getLimelightDistance();
