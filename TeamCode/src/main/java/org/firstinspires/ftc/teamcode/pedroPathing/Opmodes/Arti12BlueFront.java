@@ -27,18 +27,18 @@ public class Arti12BlueFront extends OpMode {
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double SHOOTER_VELOCITY = 1340;
+    private static final double SHOOTER_VELOCITY = 1300;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-    private final double goalX = 17;
+    private final double goalX = 15;
     private final double goalY = 144;
     private int turretZero;
 
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
-    private Pose shootPose = new Pose(60, 84, Math.toRadians(180));
+    private Pose shootPose = new Pose(55, 84, Math.toRadians(180));
 
     private final Pose pickup11Pose = new Pose(35, 84, Math.toRadians(180));
     private final Pose pickup12Pose = new Pose(28, 84, Math.toRadians(180));
