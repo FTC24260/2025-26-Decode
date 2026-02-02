@@ -13,8 +13,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "15 Blue Front")
-public class Arti15BlueFront extends OpMode {
+@Autonomous(name = "12 Blue Front Fast")
+public class Fast12BlueFront extends OpMode {
 
     private Follower follower;
 
@@ -24,51 +24,44 @@ public class Arti15BlueFront extends OpMode {
 
     private final double[] shootPositions = {0.31, 0.4, 0.49};
     private final double[] intakePositions = {0.084, 0.174, 0.264};
+
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double SHOOTER_VELOCITY = 1310;
+    private static final double SHOOTER_VELOCITY = 1340;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-    private final double goalX = 14;
+    private final double goalX = 17;
     private final double goalY = 144;
     private int turretZero;
 
+    private final double[] spindexX = {34, 36, 35};
+    private final long[] spindexDelay = {200, 220, 210};
+
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
-    private Pose shootPose = new Pose(55, 84, Math.toRadians(180));
+    private Pose shootPose = new Pose(60, 84, Math.toRadians(180));
 
-    private final Pose pickup1Ready = new Pose(40, 84, Math.toRadians(180));
-    private final Pose pickup1 = new Pose(23, 84, Math.toRadians(180));
+    private final Pose pickup13Pose = new Pose(23, 84, Math.toRadians(180));
+    private final Pose pickup23Pose = new Pose(23, 60, Math.toRadians(180));
+    private final Pose pickup33Pose = new Pose(23, 36, Math.toRadians(180));
 
-    private final Pose pickup2Ready = new Pose(40, 60, Math.toRadians(180));
-    private final Pose pickup2 = new Pose(23, 60, Math.toRadians(180));
-    private final Pose pickup2Control = new Pose(53, 52);
-
-    private final Pose pickup3Ready = new Pose(40, 36, Math.toRadians(180));
-    private final Pose pickup3 = new Pose(23, 36, Math.toRadians(180));
-    private final Pose pickup3Control = new Pose(48, 48);
+    private final Pose pickup21Control = new Pose(53, 52);
+    private final Pose pickup31Control = new Pose(60, 40);
 
     private PathChain pathToShoot;
-    private PathChain[][] pickupCycles;
+    private PathChain pickup1Sweep, pickup2Sweep, pickup3Sweep;
     private PathChain returnToShootPath;
 
     private int cycle = 0;
-    private int pickupState = 0;
-    private boolean pickupStarted = false;
+    private boolean sweeping = false;
     private boolean returningToShoot = false;
 
-    private enum IntakeSpindexState {
-        TO_SLOT_0,
-        WAIT_FOR_36,
-        WAIT_70MS,
-        DONE
-    }
-
-    private IntakeSpindexState intakeSpindexState = IntakeSpindexState.DONE;
-    private long spindexTimer = 0;
+    private boolean spindexStep1 = false;
+    private boolean spindexStep2 = false;
+    private long spindexTimer;
 
     private enum ShootState {
         IDLE,
@@ -113,22 +106,20 @@ public class Arti15BlueFront extends OpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), shootPose.getHeading())
                 .build();
 
-        pickupCycles = new PathChain[][]{
-                {
-                        follower.pathBuilder().addPath(new BezierLine(shootPose, pickup1Ready)).build(),
-                        follower.pathBuilder().addPath(new BezierLine(pickup1Ready, pickup1)).build()
-                },
-                {
-                        follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup2Control, pickup2Ready))
-                                .setConstantHeadingInterpolation(pickup2Ready.getHeading()).build(),
-                        follower.pathBuilder().addPath(new BezierLine(pickup2Ready, pickup2)).build()
-                },
-                {
-                        follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup3Control, pickup3Ready))
-                                .setConstantHeadingInterpolation(pickup3Ready.getHeading()).build(),
-                        follower.pathBuilder().addPath(new BezierLine(pickup3Ready, pickup3)).build()
-                }
-        };
+        pickup1Sweep = follower.pathBuilder()
+                .addPath(new BezierLine(shootPose, pickup13Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
+
+        pickup2Sweep = follower.pathBuilder()
+                .addPath(new BezierCurve(shootPose, pickup21Control, pickup23Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
+
+        pickup3Sweep = follower.pathBuilder()
+                .addPath(new BezierCurve(shootPose, pickup31Control, pickup33Pose))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .build();
     }
 
     @Override
@@ -136,6 +127,7 @@ public class Arti15BlueFront extends OpMode {
         follower.followPath(pathToShoot, true);
         shooterR.setVelocity(SHOOTER_VELOCITY);
         shooterL.setVelocity(SHOOTER_VELOCITY);
+        intake.setPower(-1);
     }
 
     @Override
@@ -156,61 +148,50 @@ public class Arti15BlueFront extends OpMode {
             return;
         }
 
-        PathChain[] active = pickupCycles[cycle];
+        if (!sweeping && !returningToShoot && cycle < 3) {
+            PathChain sweep = cycle == 0 ? pickup1Sweep : cycle == 1 ? pickup2Sweep : pickup3Sweep;
 
-        if (!pickupStarted) {
-            pickupStarted = true;
-            pickupState = 0;
-
-            intakeSpindexState = IntakeSpindexState.TO_SLOT_0;
             setSpindexIntakePosition(0);
+            intake.setPower(-1);
 
-            intake.setPower(0);
-            follower.followPath(active[0], true);
+            sweeping = true;
+            spindexStep1 = false;
+            spindexStep2 = false;
+
+            follower.followPath(sweep, true);
         }
 
-        switch (intakeSpindexState) {
-            case TO_SLOT_0:
-                intakeSpindexState = IntakeSpindexState.WAIT_FOR_36;
-                break;
+        if (sweeping) {
+            Pose pose = follower.getPose();
 
-            case WAIT_FOR_36:
-                if (follower.getPose().getX() < 34) {
-                    setSpindexIntakePosition(1);
-                    spindexTimer = now + 200;
-                    intakeSpindexState = IntakeSpindexState.WAIT_70MS;
-                }
-                break;
+            if (!spindexStep1 && pose.getX() <= spindexX[cycle]) {
+                setSpindexIntakePosition(1);
+                spindexTimer = now + spindexDelay[cycle];
+                spindexStep1 = true;
+            }
 
-            case WAIT_70MS:
-                if (now >= spindexTimer) {
-                    setSpindexIntakePosition(2);
-                    intakeSpindexState = IntakeSpindexState.DONE;
-                }
-                break;
+            if (spindexStep1 && !spindexStep2 && now >= spindexTimer) {
+                setSpindexIntakePosition(2);
+                spindexStep2 = true;
+            }
 
-            case DONE:
-                break;
-        }
-
-        if (pickupStarted && !follower.isBusy()) {
-            pickupState++;
-
-            if (pickupState == 1) {
-                intake.setPower(-1);
-                follower.followPath(active[1], true);
-            } else {
+            if (!follower.isBusy()) {
+                sweeping = false;
                 intake.setPower(0);
-                Pose last = cycle == 0 ? pickup1 : cycle == 1 ? pickup2 : pickup3;
+
+                Pose last =
+                        cycle == 0 ? pickup13Pose :
+                                cycle == 1 ? pickup23Pose :
+                                        pickup33Pose;
 
                 returnToShootPath = follower.pathBuilder()
                         .addPath(new BezierLine(last, shootPose))
                         .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
                         .build();
 
+                setSpindex(0);
                 follower.followPath(returnToShootPath, true);
                 returningToShoot = true;
-                setSpindex(0);
             }
         }
 
@@ -219,9 +200,7 @@ public class Arti15BlueFront extends OpMode {
             shootTimer = now + 200;
             shootState = ShootState.FLICK1_UP;
 
-            pickupStarted = false;
             returningToShoot = false;
-            pickupState = 0;
             cycle++;
         }
     }
@@ -230,9 +209,8 @@ public class Arti15BlueFront extends OpMode {
         switch (shootState) {
             case FLICK1_UP:
                 if (now >= shootTimer) {
-                    intake.setPower(-1);
                     flicker.setPosition(flickerDown);
-                    shootTimer = now + 175;
+                    shootTimer = now + 200;
                     shootState = ShootState.FLICK1_DOWN;
                 }
                 break;
@@ -240,7 +218,7 @@ public class Arti15BlueFront extends OpMode {
             case FLICK1_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(1);
-                    shootTimer = now + 320;
+                    shootTimer = now + 400;
                     shootState = ShootState.SPINDEX1_WAIT;
                 }
                 break;
@@ -248,7 +226,7 @@ public class Arti15BlueFront extends OpMode {
             case SPINDEX1_WAIT:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerUp);
-                    shootTimer = now + 175;
+                    shootTimer = now + 200;
                     shootState = ShootState.FLICK2_UP;
                 }
                 break;
@@ -256,7 +234,7 @@ public class Arti15BlueFront extends OpMode {
             case FLICK2_UP:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerDown);
-                    shootTimer = now + 175;
+                    shootTimer = now + 200;
                     shootState = ShootState.FLICK2_DOWN;
                 }
                 break;
@@ -264,7 +242,7 @@ public class Arti15BlueFront extends OpMode {
             case FLICK2_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(2);
-                    shootTimer = now + 320;
+                    shootTimer = now + 400;
                     shootState = ShootState.SPINDEX2_WAIT;
                 }
                 break;
@@ -272,7 +250,7 @@ public class Arti15BlueFront extends OpMode {
             case SPINDEX2_WAIT:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerUp);
-                    shootTimer = now + 175;
+                    shootTimer = now + 200;
                     shootState = ShootState.FLICK3_UP;
                 }
                 break;
@@ -287,7 +265,6 @@ public class Arti15BlueFront extends OpMode {
 
             case FLICK3_DOWN:
                 if (now >= shootTimer) {
-                    intake.setPower(0);
                     shootState = ShootState.DONE;
                 }
                 break;
@@ -340,3 +317,4 @@ public class Arti15BlueFront extends OpMode {
         intake.setPower(0);
     }
 }
+ 

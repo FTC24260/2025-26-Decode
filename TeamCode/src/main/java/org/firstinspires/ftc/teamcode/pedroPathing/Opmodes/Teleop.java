@@ -25,8 +25,8 @@ public class Teleop extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private ColorSensor colorSensor;
 
-    private final double[] intakePositions = {0.31, 0.4, 0.49};
-    private final double[] shootPositions = {0.084, 0.174, 0.264};
+    private final double[] shootPositions = {0.31, 0.4, 0.49};
+    private final double[] intakePositions = {0.084, 0.174, 0.264};
     private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
