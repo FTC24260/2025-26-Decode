@@ -15,105 +15,88 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @TeleOp(name = "Teleop")
 public class Teleop extends OpMode {
-    private DcMotor leftFront, leftRear, rightFront, rightRear;
 
-    private DcMotorEx shooterR;
-    private DcMotorEx shooterL;
-    private DcMotorEx intake;
-
+    private DcMotorEx shooterR, shooterL, intake;
     private Servo leftIndex, rightIndex, flicker;
     private ColorSensor colorSensor;
 
+    private Follower follower;
+
+    private DcMotor turret;
+    private Limelight3A limelight;
+
     private final double[] shootPositions = {0.31, 0.4, 0.49};
     private final double[] intakePositions = {0.084, 0.174, 0.264};
-    private final String[] slots = {"unknown", "unknown", "unknown"};
     private int currentIndex = 0;
 
     private final double flickerUp = 0.4;
     private final double flickerDown = 0.7;
 
     private static final double SERVO_DEADZONE = 0.004;
-    private double lastLeftIndexPos = -1;
-    private double lastRightIndexPos = -1;
+    private double lastIndexPos = -1;
 
     private static final double VELOCITY_TOLERANCE = 20;
-
-    private long ignoreSensorUntil = 0;
     private static final long SENSOR_IGNORE_MS = 800;
+    private long ignoreSensorUntil = 0;
 
     private enum ShooterState {
         IDLE,
         RAMPING,
         WAIT_VELOCITY,
-
         FLICK1_UP, FLICK1_DOWN,
         SPINDEX2_WAIT,
         FLICK2_UP, FLICK2_DOWN,
         SPINDEX3_WAIT,
-        FLICK3_UP, FLICK3_DOWN,
-
-        DONE
+        FLICK3_UP, FLICK3_DOWN
     }
 
     private ShooterState shooterState = ShooterState.IDLE;
     private long stateTimer = 0;
     private boolean lastA = false;
 
-    private DcMotor turret;
-    private Limelight3A limelight;
-    private Follower follower;
-
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
-    private final double MAX_POWER_GOAL = 0.6;
-    private final double Kp_GOAL = 0.01;
-    private final double goalX = 0;
+    private final double MAX_POWER_GOAL = 0.5;
+    private final double Kp_GOAL = 0.007;
+    private final double goalX = 160;
     private final double goalY = 144;
     private int turretZero = 0;
 
-    private double[] distPoints = {40, 60, 80, 100};
-    private double[] powerPoints = {1210, 1380, 1500, 1700};
+    private double[] distPoints = {44, 50, 80, 100};
+    private double[] powerPoints = {1300, 1400, 1500, 2000};
     private static final double FALLBACK_SHOOTER_VELOCITY = 1700;
 
     @Override
     public void init() {
-        leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
-        leftRear   = hardwareMap.get(DcMotor.class, "leftRear");
-        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
-        rightRear  = hardwareMap.get(DcMotor.class, "rightRear");
-
-        leftFront.setDirection(DcMotor.Direction.REVERSE);
-        leftRear.setDirection(DcMotor.Direction.REVERSE);
 
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
+        intake   = hardwareMap.get(DcMotorEx.class, "intake");
 
         shooterR.setDirection(DcMotor.Direction.REVERSE);
         shooterR.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooterL.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-
-        intake = hardwareMap.get(DcMotorEx.class, "intake");
-
-        leftIndex = hardwareMap.get(Servo.class, "leftIndex");
+        leftIndex  = hardwareMap.get(Servo.class, "leftIndex");
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
-        flicker = hardwareMap.get(Servo.class, "flicker");
+        flicker    = hardwareMap.get(Servo.class, "flicker");
 
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
 
-        applyServoDeadzone(intakePositions[0]);
         flicker.setPosition(flickerDown);
+        applyServoDeadzone(intakePositions[0]);
 
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         turret.setDirection(DcMotor.Direction.REVERSE);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);
+        limelight.pipelineSwitch(1);
         limelight.start();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(75, 20, Math.PI / 2));
+        follower.setStartingPose(new Pose(96, 81, Math.PI / 2));
+        follower.update();
 
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -121,47 +104,40 @@ public class Teleop extends OpMode {
     }
 
     @Override
+    public void start() {
+        follower.startTeleopDrive();
+    }
+
+    @Override
     public void loop() {
+
         long now = System.currentTimeMillis();
 
-        double y = -gamepad2.left_stick_y;
-        double x = gamepad2.left_stick_x;
-        double rx = gamepad2.right_stick_x;
+        follower.update();
 
-        double lf = y + x + rx;
-        double lr = y - x + rx;
-        double rf = y - x - rx;
-        double rr = y + x - rx;
-
-        double max = Math.max(1.0,
-                Math.max(Math.abs(lf),
-                        Math.max(Math.abs(lr),
-                                Math.max(Math.abs(rf), Math.abs(rr)))));
-
-        leftFront.setPower(lf / max);
-        leftRear.setPower(lr / max);
-        rightFront.setPower(rf / max);
-        rightRear.setPower(rr / max);
+        follower.setTeleOpDrive(
+                -gamepad2.left_stick_y,
+                -gamepad2.left_stick_x/2,
+                -gamepad2.right_stick_x,
+                true
+        );
 
         boolean intakePressed = gamepad1.left_trigger > 0.1;
-        intake.setPower((intakePressed || shooterState != ShooterState.IDLE && shooterState != ShooterState.DONE) ? -1 : 0);
+        intake.setPower((intakePressed || shooterState != ShooterState.IDLE) ? -1 : 0);
 
-        String detectedColor = detectColor();
-        if (!detectedColor.equals("unknown") && now >= ignoreSensorUntil && currentIndex < 3) {
-            slots[currentIndex] = detectedColor;
-            currentIndex++;
-            setSpindexIntakePosition(currentIndex);
-            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+        if (now >= ignoreSensorUntil && currentIndex < 3) {
+            String color = detectColor();
+            if (!color.equals("unknown")) {
+                currentIndex++;
+                setSpindexIntakePosition(currentIndex);
+                ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+            }
         }
 
-        double limelightDistance = getLimelightDistance();
-
-        double targetVelocity;
-        if (gamepad1.a && limelightDistance < 0) {
-            targetVelocity = FALLBACK_SHOOTER_VELOCITY;
-        } else {
-            targetVelocity = getShooterVelocityFromDistance();
-        }
+        double targetVelocity =
+                (gamepad1.a && getLimelightDistance() < 0)
+                        ? FALLBACK_SHOOTER_VELOCITY
+                        : getShooterVelocityFromDistance();
 
         boolean a = gamepad1.a;
         if (a && !lastA && shooterState == ShooterState.IDLE) {
@@ -171,9 +147,6 @@ public class Teleop extends OpMode {
 
         switch (shooterState) {
 
-            case IDLE:
-                break;
-
             case RAMPING:
                 shooterR.setVelocity(targetVelocity);
                 shooterL.setVelocity(targetVelocity);
@@ -181,9 +154,6 @@ public class Teleop extends OpMode {
                 break;
 
             case WAIT_VELOCITY:
-                shooterR.setVelocity(targetVelocity);
-                shooterL.setVelocity(targetVelocity);
-
                 if (Math.abs(shooterR.getVelocity() - targetVelocity) < VELOCITY_TOLERANCE) {
                     flicker.setPosition(flickerUp);
                     stateTimer = now + 170;
@@ -256,44 +226,20 @@ public class Teleop extends OpMode {
                     shooterState = ShooterState.IDLE;
                 }
                 break;
-
-            case DONE:
-                break;
         }
 
         lastA = a;
 
-        follower.update();
-        Pose robotPose = follower.getPoseTracker().getPose();
+        Pose pose = follower.getPose();
+        double targetAngle = Math.atan2(goalY - pose.getY(), goalX - pose.getX()) - pose.getHeading();
+        int targetTicks = turretZero + (int)((TURRET_MAX - TURRET_MIN) * targetAngle / (2 * Math.PI));
 
-        double dx = goalX - robotPose.getX();
-        double dy = goalY - robotPose.getY();
-        double targetAngle = Math.atan2(dy, dx) - robotPose.getHeading();
-
-        double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
-        int targetTicks = turretZero + (int) (targetAngle * ticksPerRadian);
-
-        int currentPos = turret.getCurrentPosition();
-        int delta = targetTicks - currentPos;
-
-        int maxRange = TURRET_MAX - TURRET_MIN;
-        while (delta > maxRange / 2) delta -= maxRange;
-        while (delta < -maxRange / 2) delta += maxRange;
-
-        double turretPower = Kp_GOAL * delta;
+        double turretPower = Kp_GOAL * (targetTicks - turret.getCurrentPosition());
         turretPower = Math.max(-MAX_POWER_GOAL, Math.min(MAX_POWER_GOAL, turretPower));
-
-        if ((currentPos >= TURRET_MAX && turretPower > 0) ||
-                (currentPos <= TURRET_MIN && turretPower < 0)) {
-            turretPower = 0;
-        }
-
         turret.setPower(turretPower);
 
-        telemetry.addData("State", shooterState);
-        telemetry.addData("Shooter Velocity", shooterR.getVelocity());
-        telemetry.addData("Target Velocity", targetVelocity);
-        telemetry.addData("Distance", getLimelightDistance());
+        telemetry.addData("Shooter State", shooterState);
+        telemetry.addData("Shooter Vel", shooterR.getVelocity());
         telemetry.update();
     }
 
@@ -322,39 +268,24 @@ public class Teleop extends OpMode {
     }
 
     private void applyServoDeadzone(double pos) {
-        double left = clamp(pos, 0.0, 1.0);
-        double right = left;
-
-        if (Math.abs(left - lastLeftIndexPos) > SERVO_DEADZONE) {
-            leftIndex.setPosition(left);
-            lastLeftIndexPos = left;
+        if (Math.abs(pos - lastIndexPos) > SERVO_DEADZONE) {
+            leftIndex.setPosition(pos);
+            rightIndex.setPosition(pos);
+            lastIndexPos = pos;
         }
-
-        if (Math.abs(right - lastRightIndexPos) > SERVO_DEADZONE) {
-            rightIndex.setPosition(right);
-            lastRightIndexPos = right;
-        }
-    }
-
-    private double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
     }
 
     private double getLimelightDistance() {
         LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) return -1;
-        double ta = result.getTa();
-        double k = 50.0;
-        return k / Math.sqrt(ta); // just use whatever ta you get
+        return 50.0 / Math.sqrt(result.getTa());
     }
 
     private void resetToIntake() {
         currentIndex = 0;
-        for (int i = 0; i < slots.length; i++) slots[i] = "unknown";
         applyServoDeadzone(intakePositions[0]);
         ignoreSensorUntil = System.currentTimeMillis() + SENSOR_IGNORE_MS;
     }
-
 
     private double getShooterVelocityFromDistance() {
         double d = getLimelightDistance();
@@ -366,8 +297,6 @@ public class Teleop extends OpMode {
                 return powerPoints[i] + t * (powerPoints[i + 1] - powerPoints[i]);
             }
         }
-
-        if (d < distPoints[0]) return powerPoints[0];
         return powerPoints[powerPoints.length - 1];
     }
 }

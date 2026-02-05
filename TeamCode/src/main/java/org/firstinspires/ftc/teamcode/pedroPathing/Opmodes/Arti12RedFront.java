@@ -13,8 +13,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "12 Blue Front")
-public class Arti12BlueFront extends OpMode {
+@Autonomous(name = "12 Red Front")
+public class Arti12RedFront extends OpMode {
 
     private Follower follower;
 
@@ -27,18 +27,21 @@ public class Arti12BlueFront extends OpMode {
     private final double flickerUp = 0.45;
     private final double flickerDown = 0.7;
 
-    private static final double SHOOTER_VELOCITY = 1340;
+    private static final double PRELOAD_VEL_1 = 1230;
+    private static final double PRELOAD_VEL_2 = 1450;
+    private static final double PRELOAD_VEL_3 = 1330;
+    private static final double SHOOTER_VELOCITY = 1320;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-    private final double goalX = 15;
+    private final double goalX = 130;
     private final double goalY = 144;
     private int turretZero;
 
-    private Pose startPose = new Pose(13, 127, Math.toRadians(145));
-    private Pose shootPose = new Pose(57, 84, Math.toRadians(180));
+    private Pose startPose = new Pose(131, 127, Math.toRadians(145));
+    private Pose shootPose = new Pose(58, 84, Math.toRadians(180));
 
     private final Pose pickup11Pose = new Pose(36, 84, Math.toRadians(180));
     private final Pose pickup12Pose = new Pose(29, 84, Math.toRadians(180));
@@ -49,13 +52,12 @@ public class Arti12BlueFront extends OpMode {
     private final Pose pickup23Pose = new Pose(24, 60, Math.toRadians(180));
     private final Pose pickup21Control = new Pose(53, 52);
 
-    private final Pose pickup31Pose = new Pose(37, 36, Math.toRadians(180));
-    private final Pose pickup32Pose = new Pose(30, 36, Math.toRadians(180));
-    private final Pose pickup33Pose = new Pose(25, 36, Math.toRadians(180));
-    private final Pose pickup31Control = new Pose(60, 48);
+    private final Pose pickup31Pose = new Pose(36, 36, Math.toRadians(180));
+    private final Pose pickup32Pose = new Pose(29, 36, Math.toRadians(180));
+    private final Pose pickup33Pose = new Pose(24, 36, Math.toRadians(180));
+    private final Pose pickup31Control = new Pose(48, 48);
 
-    private final Pose gatePose = new Pose(18, 73, Math.toRadians(180));
-    private final Pose gateControl = new Pose (24, 75);
+    private final Pose gatePose = new Pose(20, 80, Math.toRadians(180));
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
@@ -138,8 +140,7 @@ public class Arti12BlueFront extends OpMode {
     @Override
     public void start() {
         follower.followPath(pathToShoot, true);
-        shooterR.setVelocity(SHOOTER_VELOCITY);
-        shooterL.setVelocity(SHOOTER_VELOCITY);
+        setShooterVelocity(PRELOAD_VEL_1);
         intake.setPower(-1);
     }
 
@@ -157,6 +158,7 @@ public class Arti12BlueFront extends OpMode {
                 return;
             }
             if (now >= preloadDelayEnd) {
+                setShooterVelocity(PRELOAD_VEL_1);
                 flicker.setPosition(flickerUp);
                 shootTimer = now + 200;
                 shootState = ShootState.FLICK1_UP;
@@ -190,7 +192,7 @@ public class Arti12BlueFront extends OpMode {
 
                 if (cycle == 0) {
                     returnToShootPath = follower.pathBuilder()
-                            .addPath(new BezierCurve(pickup13Pose, gateControl, gatePose))
+                            .addPath(new BezierLine(pickup13Pose, gatePose))
                             .setConstantHeadingInterpolation(pickup13Pose.getHeading())
                             .addPath(new BezierLine(gatePose, shootPose))
                             .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
@@ -209,6 +211,7 @@ public class Arti12BlueFront extends OpMode {
         }
 
         if (returningToShoot && !follower.isBusy()) {
+            setShooterVelocity(SHOOTER_VELOCITY);
             flicker.setPosition(flickerUp);
             shootTimer = now + 200;
             shootState = ShootState.FLICK1_UP;
@@ -240,6 +243,7 @@ public class Arti12BlueFront extends OpMode {
 
             case SPINDEX1_WAIT:
                 if (now >= shootTimer) {
+                    setShooterVelocity(PRELOAD_VEL_2);
                     flicker.setPosition(flickerUp);
                     shootTimer = now + 200;
                     shootState = ShootState.FLICK2_UP;
@@ -264,6 +268,7 @@ public class Arti12BlueFront extends OpMode {
 
             case SPINDEX2_WAIT:
                 if (now >= shootTimer) {
+                    setShooterVelocity(PRELOAD_VEL_3);
                     flicker.setPosition(flickerUp);
                     shootTimer = now + 200;
                     shootState = ShootState.FLICK3_UP;
@@ -280,6 +285,7 @@ public class Arti12BlueFront extends OpMode {
 
             case FLICK3_DOWN:
                 if (now >= shootTimer) {
+                    setShooterVelocity(SHOOTER_VELOCITY);
                     shootState = ShootState.DONE;
                 }
                 break;
@@ -312,6 +318,11 @@ public class Arti12BlueFront extends OpMode {
         }
 
         turret.setPower(turretPower);
+    }
+
+    private void setShooterVelocity(double vel) {
+        shooterR.setVelocity(vel);
+        shooterL.setVelocity(vel);
     }
 
     private void setSpindex(int index) {
