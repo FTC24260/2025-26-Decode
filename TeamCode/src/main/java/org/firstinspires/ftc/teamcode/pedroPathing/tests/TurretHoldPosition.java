@@ -24,7 +24,7 @@ public class TurretHoldPosition extends OpMode {
     @Override
     public void loop() {
         // Just keep the turret at tick 0
-        turret.setTargetPosition(-400);  //550  //-350
+        turret.setTargetPosition(565); //-460, 565
         telemetry.addData("Turret Position", turret.getCurrentPosition());
         telemetry.update();
     }

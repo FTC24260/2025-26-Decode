@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.util.Range;
 
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.follower.Follower;
@@ -29,8 +30,8 @@ public class Teleop extends OpMode {
     private final double[] intakePositions = {0.084, 0.174, 0.264};
     private int currentIndex = 0;
 
-    private final double flickerUp = 0.4;
-    private final double flickerDown = 0.7;
+    private final double flickerUp = 0.54;
+    private final double flickerDown = 0.76;
 
     private static final double SERVO_DEADZONE = 0.004;
     private double lastIndexPos = -1;
@@ -43,6 +44,7 @@ public class Teleop extends OpMode {
         IDLE,
         RAMPING,
         WAIT_VELOCITY,
+        WAIT_LONG_DIST,
         FLICK1_UP, FLICK1_DOWN,
         SPINDEX2_WAIT,
         FLICK2_UP, FLICK2_DOWN,
@@ -54,21 +56,21 @@ public class Teleop extends OpMode {
     private long stateTimer = 0;
     private boolean lastA = false;
 
-    private final int TURRET_MAX = 510;
-    private final int TURRET_MIN = -350;
-    private final double MAX_POWER_GOAL = 0.5;
-    private final double Kp_GOAL = 0.007;
-    private final double goalX = 160;
+    private final int TURRET_MAX = 450;
+    private final int TURRET_MIN = -460;
+    private final double MAX_POWER_GOAL = 0.4;
+    private final double goalX = 13;
     private final double goalY = 144;
-    private int turretZero = 0;
 
     private double[] distPoints = {44, 50, 80, 100};
-    private double[] powerPoints = {1300, 1400, 1500, 2000};
-    private static final double FALLBACK_SHOOTER_VELOCITY = 1700;
+    private double[] powerPoints = {1250, 1320, 1500, 1950};
+    private static final double FALLBACK_SHOOTER_VELOCITY = 1950;
+
+    private double latchedTargetVelocity = 0;
+    private boolean longDistanceFirstShot = false;
 
     @Override
     public void init() {
-
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
         intake   = hardwareMap.get(DcMotorEx.class, "intake");
@@ -91,16 +93,15 @@ public class Teleop extends OpMode {
         turret.setDirection(DcMotor.Direction.REVERSE);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(1);
         limelight.start();
+        limelight.pipelineSwitch(0);
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(96, 81, Math.PI / 2));
+        follower.setStartingPose(new Pose(73, 63, Math.PI / 2));
         follower.update();
 
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        turretZero = turret.getCurrentPosition();
     }
 
     @Override
@@ -110,21 +111,22 @@ public class Teleop extends OpMode {
 
     @Override
     public void loop() {
-
         long now = System.currentTimeMillis();
 
+        // --- Teleop drive ---
         follower.update();
-
         follower.setTeleOpDrive(
-                -gamepad2.left_stick_y,
-                -gamepad2.left_stick_x/2,
-                -gamepad2.right_stick_x,
+                -gamepad2.left_stick_y / 1.4,
+                -gamepad2.left_stick_x / 2,
+                -gamepad2.right_stick_x / 1.4,
                 true
         );
 
+        // --- Intake control ---
         boolean intakePressed = gamepad1.left_trigger > 0.1;
         intake.setPower((intakePressed || shooterState != ShooterState.IDLE) ? -1 : 0);
 
+        // --- Color sensor indexing ---
         if (now >= ignoreSensorUntil && currentIndex < 3) {
             String color = detectColor();
             if (!color.equals("unknown")) {
@@ -134,37 +136,54 @@ public class Teleop extends OpMode {
             }
         }
 
-        double targetVelocity =
-                (gamepad1.a && getLimelightDistance() < 0)
-                        ? FALLBACK_SHOOTER_VELOCITY
-                        : getShooterVelocityFromDistance();
-
+        // --- Shooter trigger ---
         boolean a = gamepad1.a;
         if (a && !lastA && shooterState == ShooterState.IDLE) {
+            latchedTargetVelocity =
+                    (getLimelightDistance() < 0)
+                            ? FALLBACK_SHOOTER_VELOCITY
+                            : getShooterVelocityFromDistance();
+
             applyServoDeadzone(shootPositions[0]);
+            longDistanceFirstShot = getLimelightDistance() > 60;
             shooterState = ShooterState.RAMPING;
         }
 
+        // --- Shooter state machine ---
         switch (shooterState) {
 
             case RAMPING:
-                shooterR.setVelocity(targetVelocity);
-                shooterL.setVelocity(targetVelocity);
+                shooterR.setVelocity(latchedTargetVelocity);
+                shooterL.setVelocity(latchedTargetVelocity);
                 shooterState = ShooterState.WAIT_VELOCITY;
                 break;
 
             case WAIT_VELOCITY:
-                if (Math.abs(shooterR.getVelocity() - targetVelocity) < VELOCITY_TOLERANCE) {
+                if (Math.abs(shooterR.getVelocity() - latchedTargetVelocity) < VELOCITY_TOLERANCE) {
+                    if (longDistanceFirstShot) {
+                        stateTimer = now + 200;
+                        shooterState = ShooterState.WAIT_LONG_DIST;
+                    } else {
+                        flicker.setPosition(flickerUp);
+                        stateTimer = now + 200;
+                        shooterState = ShooterState.FLICK1_UP;
+                    }
+                }
+                break;
+
+            case WAIT_LONG_DIST:
+                if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 170;
+                    stateTimer = now + 200;
                     shooterState = ShooterState.FLICK1_UP;
+                    longDistanceFirstShot = false;
                 }
                 break;
 
             case FLICK1_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 170;
+                    stateTimer = now + 200;
                     shooterState = ShooterState.FLICK1_DOWN;
                 }
                 break;
@@ -180,7 +199,7 @@ public class Teleop extends OpMode {
             case SPINDEX2_WAIT:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 170;
+                    stateTimer = now + 200;
                     shooterState = ShooterState.FLICK2_UP;
                 }
                 break;
@@ -188,7 +207,7 @@ public class Teleop extends OpMode {
             case FLICK2_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 350;
+                    stateTimer = now + 200;
                     shooterState = ShooterState.FLICK2_DOWN;
                 }
                 break;
@@ -196,7 +215,7 @@ public class Teleop extends OpMode {
             case FLICK2_DOWN:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[2]);
-                    stateTimer = now + 170;
+                    stateTimer = now + 350;
                     shooterState = ShooterState.SPINDEX3_WAIT;
                 }
                 break;
@@ -219,27 +238,58 @@ public class Teleop extends OpMode {
 
             case FLICK3_DOWN:
                 if (now >= stateTimer) {
+                    intake.setPower(0);
                     shooterR.setPower(0);
                     shooterL.setPower(0);
-                    intake.setPower(0);
+                    latchedTargetVelocity = 0;
                     resetToIntake();
                     shooterState = ShooterState.IDLE;
+
                 }
                 break;
         }
 
         lastA = a;
 
+        // --- Turret aiming using only localization ---
         Pose pose = follower.getPose();
-        double targetAngle = Math.atan2(goalY - pose.getY(), goalX - pose.getX()) - pose.getHeading();
-        int targetTicks = turretZero + (int)((TURRET_MAX - TURRET_MIN) * targetAngle / (2 * Math.PI));
+        double angleToGoal = Math.atan2(goalY - pose.getY(), goalX - pose.getX()) - pose.getHeading();
 
-        double turretPower = Kp_GOAL * (targetTicks - turret.getCurrentPosition());
-        turretPower = Math.max(-MAX_POWER_GOAL, Math.min(MAX_POWER_GOAL, turretPower));
-        turret.setPower(turretPower);
+// Wrap angle to [-PI, PI]
+        while (angleToGoal > Math.PI) angleToGoal -= 2 * Math.PI;
+        while (angleToGoal < -Math.PI) angleToGoal += 2 * Math.PI;
+
+// Convert angle to encoder ticks
+        double turretAngleToTicks = 1020; // tune this value (ticks per full 2π rotation)
+        int targetTicks = (int) (angleToGoal / (2 * Math.PI) * turretAngleToTicks);
+
+// Clamp target to physical limits
+        if (targetTicks > TURRET_MAX) targetTicks = TURRET_MAX;
+        if (targetTicks < TURRET_MIN) targetTicks = TURRET_MIN;
+
+// Calculate shortest path error
+        int currentTicks = turret.getCurrentPosition();
+        int error = targetTicks - currentTicks;
+        if (error > (TURRET_MAX - TURRET_MIN) / 2) error -= (TURRET_MAX - TURRET_MIN);
+        if (error < -(TURRET_MAX - TURRET_MIN) / 2) error += (TURRET_MAX - TURRET_MIN);
+
+// Apply proportional control
+        double kP_turret = 0.01; // tune as needed
+        double turretPower = kP_turret * error;
+
+// Respect physical limits
+        if ((currentTicks >= TURRET_MAX && turretPower > 0) || (currentTicks <= TURRET_MIN && turretPower < 0)) {
+            turretPower = 0;
+        }
+
+        turret.setPower(Range.clip(turretPower, -MAX_POWER_GOAL, MAX_POWER_GOAL));
+
+
 
         telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Shooter Vel", shooterR.getVelocity());
+        telemetry.addData("Latched Vel", latchedTargetVelocity);
+        telemetry.addData("Long Dist First Shot", longDistanceFirstShot);
         telemetry.update();
     }
 
