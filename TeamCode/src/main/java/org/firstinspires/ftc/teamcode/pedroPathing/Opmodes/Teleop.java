@@ -68,6 +68,9 @@ public class Teleop extends OpMode {
 
     private double latchedTargetVelocity = 0;
 
+    private boolean manualOverride = false; // true if D-pad was used
+    private int turretManualOffset = 0;     // ticks added/subtracted from auto target
+
     @Override
     public void init() {
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
@@ -144,7 +147,6 @@ public class Teleop extends OpMode {
             if (limelightDist > 0) {
                 latchedTargetVelocity = getShooterVelocityFromDistance();
             } else {
-                // Limelight not detecting, use localization fallback
                 Pose pose = follower.getPose();
                 double dx = goalX - pose.getX();
                 double dy = goalY - pose.getY();
@@ -162,12 +164,11 @@ public class Teleop extends OpMode {
 
             applyServoDeadzone(shootPositions[0]);
             shooterState = ShooterState.RAMPING;
-            stateTimer = System.currentTimeMillis() + 900; // 900ms delay before rapid fire
+            stateTimer = System.currentTimeMillis() + 900;
         }
 
         // --- Shooter state machine ---
         switch (shooterState) {
-
             case RAMPING:
                 shooterR.setVelocity(latchedTargetVelocity);
                 shooterL.setVelocity(latchedTargetVelocity);
@@ -177,11 +178,9 @@ public class Teleop extends OpMode {
             case WAIT_VELOCITY:
                 if (Math.abs(shooterR.getVelocity() - latchedTargetVelocity) < VELOCITY_TOLERANCE) {
                     if (System.currentTimeMillis() >= stateTimer) {
-                        if (Math.abs(shooterR.getVelocity() - latchedTargetVelocity) < VELOCITY_TOLERANCE) {
-                            flicker.setPosition(flickerUp);
-                            stateTimer = System.currentTimeMillis() + 200;
-                            shooterState = ShooterState.FLICK1_UP;
-                        }
+                        flicker.setPosition(flickerUp);
+                        stateTimer = System.currentTimeMillis() + 200;
+                        shooterState = ShooterState.FLICK1_UP;
                     }
                 }
                 break;
@@ -248,7 +247,7 @@ public class Teleop extends OpMode {
                     latchedTargetVelocity = 0;
                     resetToIntake();
                     shooterState = ShooterState.IDLE;
-                    stateTimer = now+1000;
+                    stateTimer = now + 1000;
                     shooterR.setPower(0);
                     shooterL.setPower(0);
                 }
@@ -257,36 +256,42 @@ public class Teleop extends OpMode {
 
         lastA = a;
 
-        // --- Turret aiming using only localization ---
+        // --- Manual turret override ---
+        if (gamepad1.dpad_left) {
+            turretManualOffset += 5; // adjust ticks per press
+            manualOverride = true;
+        } else if (gamepad1.dpad_right) {
+            turretManualOffset -= 5;
+            manualOverride = true;
+        }
+
+        // --- Turret aiming ---
         Pose pose = follower.getPose();
         double angleToGoal = Math.atan2(goalY - pose.getY(), goalX - pose.getX()) - pose.getHeading();
+
+        if (!manualOverride) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid() && Math.abs(result.getTy()) < 6) {
+                angleToGoal += Math.toRadians(result.getTy());
+            }
+        }
 
         while (angleToGoal > Math.PI) angleToGoal -= 2 * Math.PI;
         while (angleToGoal < -Math.PI) angleToGoal += 2 * Math.PI;
 
         double turretAngleToTicks = 1020;
-        int targetTicks = (int) (angleToGoal / (2 * Math.PI) * turretAngleToTicks) + TURRET_OFFSET_TICKS;
+        int targetTicks = (int) (angleToGoal / (2 * Math.PI) * turretAngleToTicks) + TURRET_OFFSET_TICKS + turretManualOffset;
+        targetTicks = Range.clip(targetTicks, TURRET_MIN, TURRET_MAX);
 
-        if (targetTicks > TURRET_MAX) targetTicks = TURRET_MAX;
-        if (targetTicks < TURRET_MIN) targetTicks = TURRET_MIN;
-
-        int currentTicks = turret.getCurrentPosition();
-        int error = targetTicks - currentTicks;
-        if (error > (TURRET_MAX - TURRET_MIN) / 2) error -= (TURRET_MAX - TURRET_MIN);
-        if (error < -(TURRET_MAX - TURRET_MIN) / 2) error += (TURRET_MAX - TURRET_MIN);
-
+        int error = targetTicks - turret.getCurrentPosition();
         double kP_turret = 0.01;
         double turretPower = kP_turret * error;
-
-        if ((currentTicks >= TURRET_MAX && turretPower > 0) || (currentTicks <= TURRET_MIN && turretPower < 0)) {
-            turretPower = 0;
-        }
-
         turret.setPower(Range.clip(turretPower, -MAX_POWER_GOAL, MAX_POWER_GOAL));
 
         telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Shooter Vel", shooterR.getVelocity());
         telemetry.addData("Latched Vel", latchedTargetVelocity);
+        telemetry.addData("Turret Offset", turretManualOffset);
         telemetry.update();
     }
 
