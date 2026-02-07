@@ -177,7 +177,7 @@ public class Arti12BlueFront extends OpMode {
             pickupStarted = true;
             pickupState = 0;
             setSpindexIntakePosition(0);
-            follower.followPath(active[0], true);
+            follower.followPath(active[0], 1.0, true);
         }
 
         if (pickupStarted && pickupState < active.length && !follower.isBusy()) {

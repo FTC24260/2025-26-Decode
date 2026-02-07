@@ -12,7 +12,7 @@ import com.pedropathing.follower.Follower;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "Localization Only from LL")
+//@TeleOp(name = "Localization Only from LL")
 public class LocalizationOnlyLL extends OpMode {
 
     private DcMotor turret;
