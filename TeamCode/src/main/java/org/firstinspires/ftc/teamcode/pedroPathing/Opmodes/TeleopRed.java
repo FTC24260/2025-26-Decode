@@ -15,7 +15,7 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @TeleOp(name = "Teleop")
-public class Teleop extends OpMode {
+public class TeleopRed extends OpMode {
 
     private DcMotorEx shooterR, shooterL, intake;
     private Servo leftIndex, rightIndex, flicker;
@@ -58,18 +58,17 @@ public class Teleop extends OpMode {
     private final int TURRET_MAX = 450;
     private final int TURRET_MIN = -460;
     private final double MAX_POWER_GOAL = 0.4;
-    private final double goalX = 0;
+    private final double goalX = 144;
     private final double goalY = 144;
 
     private double[] distPoints = {44, 50, 80, 100};
     private double[] powerPoints = {1300, 1320, 1500, 1900};
-    private static final double FALLBACK_SHOOTER_VELOCITY = 1900;
     private static final int TURRET_OFFSET_TICKS = 10; // tune experimentally
 
     private double latchedTargetVelocity = 0;
 
-    private boolean manualOverride = false; // true if D-pad was used
-    private int turretManualOffset = 0;     // ticks added/subtracted from auto target
+    private boolean manualOverride = false;
+    private int turretManualOffset = 0;
 
     @Override
     public void init() {
@@ -96,10 +95,10 @@ public class Teleop extends OpMode {
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.start();
-        limelight.pipelineSwitch(0);
+        limelight.pipelineSwitch(1);
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(49, 81, Math.PI / 2));
+        follower.setStartingPose(new Pose(95, 81, Math.PI / 2));
         follower.update();
 
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -147,12 +146,13 @@ public class Teleop extends OpMode {
             if (limelightDist > 0) {
                 latchedTargetVelocity = getShooterVelocityFromDistance();
             } else {
+                // Use localization distance if Limelight fails
                 Pose pose = follower.getPose();
                 double dx = goalX - pose.getX();
                 double dy = goalY - pose.getY();
                 double distance = Math.hypot(dx, dy);
 
-                latchedTargetVelocity = FALLBACK_SHOOTER_VELOCITY;
+                latchedTargetVelocity = powerPoints[0];
                 for (int i = 0; i < distPoints.length - 1; i++) {
                     if (distance >= distPoints[i] && distance <= distPoints[i + 1]) {
                         double t = (distance - distPoints[i]) / (distPoints[i + 1] - distPoints[i]);
@@ -258,7 +258,7 @@ public class Teleop extends OpMode {
 
         // --- Manual turret override ---
         if (gamepad1.dpad_left) {
-            turretManualOffset += 5; // adjust ticks per press
+            turretManualOffset += 5;
             manualOverride = true;
         } else if (gamepad1.dpad_right) {
             turretManualOffset -= 5;

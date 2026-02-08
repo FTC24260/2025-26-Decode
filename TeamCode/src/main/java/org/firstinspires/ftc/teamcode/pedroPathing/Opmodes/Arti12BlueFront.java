@@ -24,8 +24,8 @@ public class Arti12BlueFront extends OpMode {
 
     private final double[] shootPositions = {0.31, 0.4, 0.49};
     private final double[] intakePositions = {0.084, 0.174, 0.264};
-    private final double flickerUp = 0.45;
-    private final double flickerDown = 0.7;
+    private final double flickerUp = 0.54;
+    private final double flickerDown = 0.76;
 
     private static final double SHOOTER_VELOCITY = 1340;
 
