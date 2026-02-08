@@ -24,21 +24,21 @@ public class Arti12BlueFront extends OpMode {
 
     private final double[] shootPositions = {0.31, 0.4, 0.49};
     private final double[] intakePositions = {0.084, 0.174, 0.264};
-    private final double flickerUp = 0.54;
-    private final double flickerDown = 0.76;
+    private final double flickerUp = 0.575;
+    private final double flickerDown = 0.795;
 
-    private static final double SHOOTER_VELOCITY = 1340;
+    private static final double SHOOTER_VELOCITY = 1370;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
     private final double Kp_ZERO = 0.01;
-    private final double goalX = 15;
+    private final double goalX = 14;
     private final double goalY = 144;
     private int turretZero;
 
-    private Pose startPose = new Pose(13, 127, Math.toRadians(145));
+    private Pose startPose = new Pose(14, 127, Math.toRadians(145));
     private Pose shootPose = new Pose(57, 84, Math.toRadians(180));
     private final Pose finalPose = new Pose(25, 73, Math.toRadians(180));
 
@@ -56,8 +56,8 @@ public class Arti12BlueFront extends OpMode {
     private final Pose pickup33Pose = new Pose(25, 36, Math.toRadians(180));
     private final Pose pickup31Control = new Pose(60, 48);
 
-    private final Pose gatePose = new Pose(18, 73, Math.toRadians(180));
-    private final Pose gateControl = new Pose(24, 75);
+//    private final Pose gatePose = new Pose(18, 73, Math.toRadians(180));
+//    private final Pose gateControl = new Pose(24, 75);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
@@ -208,9 +208,9 @@ public class Arti12BlueFront extends OpMode {
 
                 if (cycle == 0) {
                     returnToShootPath = follower.pathBuilder()
-                            .addPath(new BezierCurve(pickup13Pose, gateControl, gatePose))
-                            .setConstantHeadingInterpolation(pickup13Pose.getHeading())
-                            .addPath(new BezierLine(gatePose, shootPose))
+//                            .addPath(new BezierCurve(pickup13Pose, gateControl, gatePose))
+//                            .setConstantHeadingInterpolation(pickup13Pose.getHeading())
+                            .addPath(new BezierLine(pickup13Pose, shootPose))
                             .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
                             .build();
                 } else {
@@ -291,7 +291,7 @@ public class Arti12BlueFront extends OpMode {
             case FLICK3_UP:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerDown);
-                    shootTimer = now + 200;
+                    shootTimer = now + 700;
                     shootState = ShootState.FLICK3_DOWN;
                 }
                 break;

@@ -14,7 +14,7 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@TeleOp(name = "Teleop")
+//@TeleOp(name = "Teleop")
 public class TeleopRedAuto extends OpMode {
 
     private DcMotorEx shooterR, shooterL, intake;

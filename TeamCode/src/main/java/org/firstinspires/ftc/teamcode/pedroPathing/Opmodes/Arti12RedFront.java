@@ -40,26 +40,26 @@ public class Arti12RedFront extends OpMode {
 
     // Mirror all Y coordinates: y_mirror = 144 - y
     // Mirror headings: heading_mirror = -heading
-    private Pose startPose = new Pose(13, 144 - 127, -Math.toRadians(145));
-    private Pose shootPose = new Pose(57, 144 - 84, -Math.toRadians(180));
-    private final Pose finalPose = new Pose(25, 144 - 73, -Math.toRadians(180));
+    private Pose startPose = new Pose(131, 127, Math.toRadians(45));
+    private Pose shootPose = new Pose(87, 84, Math.toRadians(0));
+    private final Pose finalPose = new Pose(119, 73, Math.toRadians(0));
 
-    private final Pose pickup11Pose = new Pose(36, 144 - 84, -Math.toRadians(180));
-    private final Pose pickup12Pose = new Pose(29, 144 - 84, -Math.toRadians(180));
-    private final Pose pickup13Pose = new Pose(24, 144 - 84, -Math.toRadians(180));
+    private final Pose pickup11Pose = new Pose(108, 84, Math.toRadians(0));
+    private final Pose pickup12Pose = new Pose(115, 84, Math.toRadians(0));
+    private final Pose pickup13Pose = new Pose(120, 84, Math.toRadians(0));
 
-    private final Pose pickup21Pose = new Pose(36, 144 - 60, -Math.toRadians(180));
-    private final Pose pickup22Pose = new Pose(29, 144 - 60, -Math.toRadians(180));
-    private final Pose pickup23Pose = new Pose(24, 144 - 60, -Math.toRadians(180));
-    private final Pose pickup21Control = new Pose(53, 144 - 52);
+    private final Pose pickup21Pose = new Pose(108, 60, Math.toRadians(0));
+    private final Pose pickup22Pose = new Pose(115, 60, Math.toRadians(0));
+    private final Pose pickup23Pose = new Pose(120, 60, Math.toRadians(0));
+    private final Pose pickup21Control = new Pose(91, 52);
 
-    private final Pose pickup31Pose = new Pose(37, 144 - 36, -Math.toRadians(180));
-    private final Pose pickup32Pose = new Pose(30, 144 - 36, -Math.toRadians(180));
-    private final Pose pickup33Pose = new Pose(25, 144 - 36, -Math.toRadians(180));
-    private final Pose pickup31Control = new Pose(60, 144 - 48);
+    private final Pose pickup31Pose = new Pose(107, 36, Math.toRadians(0));
+    private final Pose pickup32Pose = new Pose(114, 36, Math.toRadians(0));
+    private final Pose pickup33Pose = new Pose(119, 36, Math.toRadians(0));
+    private final Pose pickup31Control = new Pose(126, 48);
 
-    private final Pose gatePose = new Pose(18, 144 - 73, -Math.toRadians(180));
-    private final Pose gateControl = new Pose(24, 144 - 75);
+    private final Pose gatePose = new Pose(126, 73, Math.toRadians(0));
+    private final Pose gateControl = new Pose(120, 75);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
