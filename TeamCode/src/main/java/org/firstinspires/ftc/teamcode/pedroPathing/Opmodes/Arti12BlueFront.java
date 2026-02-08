@@ -33,12 +33,14 @@ public class Arti12BlueFront extends OpMode {
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
+    private final double Kp_ZERO = 0.01;
     private final double goalX = 15;
     private final double goalY = 144;
     private int turretZero;
 
     private Pose startPose = new Pose(13, 127, Math.toRadians(145));
     private Pose shootPose = new Pose(57, 84, Math.toRadians(180));
+    private final Pose finalPose = new Pose(25, 73, Math.toRadians(180));
 
     private final Pose pickup11Pose = new Pose(36, 84, Math.toRadians(180));
     private final Pose pickup12Pose = new Pose(29, 84, Math.toRadians(180));
@@ -55,18 +57,20 @@ public class Arti12BlueFront extends OpMode {
     private final Pose pickup31Control = new Pose(60, 48);
 
     private final Pose gatePose = new Pose(18, 73, Math.toRadians(180));
-    private final Pose gateControl = new Pose (24, 75);
+    private final Pose gateControl = new Pose(24, 75);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
     private PathChain[] pickupPaths2;
     private PathChain[] pickupPaths3;
     private PathChain returnToShootPath;
+    private PathChain finalPath;
 
     private int cycle = 0;
     private int pickupState = 0;
     private boolean pickupStarted = false;
     private boolean returningToShoot = false;
+    private boolean finalPathStarted = false;
 
     private boolean preloadDelayDone = false;
     private long preloadDelayEnd = 0;
@@ -148,6 +152,20 @@ public class Arti12BlueFront extends OpMode {
         long now = System.currentTimeMillis();
 
         follower.update();
+
+        if (cycle >= 3) {
+            updateTurretZero();
+            if (!finalPathStarted) {
+                finalPath = follower.pathBuilder()
+                        .addPath(new BezierLine(follower.getPose(), finalPose))
+                        .setLinearHeadingInterpolation(follower.getPose().getHeading(), finalPose.getHeading())
+                        .build();
+                follower.followPath(finalPath, true);
+                finalPathStarted = true;
+            }
+            return;
+        }
+
         updateTurret();
 
         if (shootState == ShootState.IDLE && !follower.isBusy()) {
@@ -312,6 +330,13 @@ public class Arti12BlueFront extends OpMode {
         }
 
         turret.setPower(turretPower);
+    }
+
+    private void updateTurretZero() {
+        int error = -turret.getCurrentPosition();
+        double power = Kp_ZERO * error;
+        power = Math.max(-0.4, Math.min(0.4, power));
+        turret.setPower(power);
     }
 
     private void setSpindex(int index) {

@@ -15,7 +15,7 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
 @TeleOp(name = "Teleop")
-public class TeleopBlue extends OpMode {
+public class TeleopBlueNoAuto extends OpMode {
 
     private DcMotorEx shooterR, shooterL, intake;
     private Servo leftIndex, rightIndex, flicker;
@@ -98,7 +98,7 @@ public class TeleopBlue extends OpMode {
         limelight.pipelineSwitch(0);
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(49, 81, Math.PI / 2));
+        follower.setStartingPose(new Pose(13, 127, Math.PI / 2));
         follower.update();
 
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);

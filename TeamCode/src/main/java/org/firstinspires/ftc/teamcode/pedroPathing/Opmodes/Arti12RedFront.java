@@ -40,25 +40,25 @@ public class Arti12RedFront extends OpMode {
 
     private int turretZero;
 
-    private Pose startPose = new Pose(-13, 127, Math.PI - Math.toRadians(145));
-    private Pose shootPose = new Pose(-57, 84, Math.PI - Math.toRadians(180));
+    private Pose startPose = new Pose(144-13, 127, Math.PI - Math.toRadians(145));
+    private Pose shootPose = new Pose(144-57, 84, Math.PI - Math.toRadians(180));
 
-    private final Pose pickup11Pose = new Pose(-36, 84, Math.PI);
-    private final Pose pickup12Pose = new Pose(-29, 84, Math.PI);
-    private final Pose pickup13Pose = new Pose(-24, 84, Math.PI);
+    private final Pose pickup11Pose = new Pose(144-36, 84, Math.PI);
+    private final Pose pickup12Pose = new Pose(144-29, 84, Math.PI);
+    private final Pose pickup13Pose = new Pose(144-24, 84, Math.PI);
 
-    private final Pose pickup21Pose = new Pose(-36, 60, Math.PI);
-    private final Pose pickup22Pose = new Pose(-29, 60, Math.PI);
-    private final Pose pickup23Pose = new Pose(-24, 60, Math.PI);
-    private final Pose pickup21Control = new Pose(-53, 52);
+    private final Pose pickup21Pose = new Pose(144-36, 60, Math.PI);
+    private final Pose pickup22Pose = new Pose(144-29, 60, Math.PI);
+    private final Pose pickup23Pose = new Pose(144-24, 60, Math.PI);
+    private final Pose pickup21Control = new Pose(144-53, 52);
 
-    private final Pose pickup31Pose = new Pose(-37, 36, Math.PI);
-    private final Pose pickup32Pose = new Pose(-30, 36, Math.PI);
-    private final Pose pickup33Pose = new Pose(-25, 36, Math.PI);
-    private final Pose pickup31Control = new Pose(-60, 48);
+    private final Pose pickup31Pose = new Pose(144-37, 36, Math.PI);
+    private final Pose pickup32Pose = new Pose(144-30, 36, Math.PI);
+    private final Pose pickup33Pose = new Pose(144-25, 36, Math.PI);
+    private final Pose pickup31Control = new Pose(144-60, 48);
 
-    private final Pose gatePose = new Pose(-18, 73, Math.PI);
-    private final Pose gateControl = new Pose(-24, 75);
+    private final Pose gatePose = new Pose(144-18, 73, Math.PI);
+    private final Pose gateControl = new Pose(144-24, 75);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
