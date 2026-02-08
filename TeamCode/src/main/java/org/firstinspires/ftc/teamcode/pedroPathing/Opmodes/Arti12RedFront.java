@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "12 Red Front")
+@Autonomous(name = "12 Red Front Mirrored")
 public class Arti12RedFront extends OpMode {
 
     private Follower follower;
@@ -27,49 +27,52 @@ public class Arti12RedFront extends OpMode {
     private final double flickerUp = 0.54;
     private final double flickerDown = 0.76;
 
-
     private static final double SHOOTER_VELOCITY = 1340;
 
     private final int TURRET_MAX = 510;
     private final int TURRET_MIN = -350;
     private final double MAX_POWER_GOAL = 0.6;
     private final double Kp_GOAL = 0.01;
-
-    private final double goalX = -15;
+    private final double Kp_ZERO = 0.01;
+    private final double goalX = 15;
     private final double goalY = 144;
-
     private int turretZero;
 
-    private Pose startPose = new Pose(144-13, 127, Math.PI - Math.toRadians(145));
-    private Pose shootPose = new Pose(144-57, 84, Math.PI - Math.toRadians(180));
+    // Mirror all Y coordinates: y_mirror = 144 - y
+    // Mirror headings: heading_mirror = -heading
+    private Pose startPose = new Pose(13, 144 - 127, -Math.toRadians(145));
+    private Pose shootPose = new Pose(57, 144 - 84, -Math.toRadians(180));
+    private final Pose finalPose = new Pose(25, 144 - 73, -Math.toRadians(180));
 
-    private final Pose pickup11Pose = new Pose(144-36, 84, Math.PI);
-    private final Pose pickup12Pose = new Pose(144-29, 84, Math.PI);
-    private final Pose pickup13Pose = new Pose(144-24, 84, Math.PI);
+    private final Pose pickup11Pose = new Pose(36, 144 - 84, -Math.toRadians(180));
+    private final Pose pickup12Pose = new Pose(29, 144 - 84, -Math.toRadians(180));
+    private final Pose pickup13Pose = new Pose(24, 144 - 84, -Math.toRadians(180));
 
-    private final Pose pickup21Pose = new Pose(144-36, 60, Math.PI);
-    private final Pose pickup22Pose = new Pose(144-29, 60, Math.PI);
-    private final Pose pickup23Pose = new Pose(144-24, 60, Math.PI);
-    private final Pose pickup21Control = new Pose(144-53, 52);
+    private final Pose pickup21Pose = new Pose(36, 144 - 60, -Math.toRadians(180));
+    private final Pose pickup22Pose = new Pose(29, 144 - 60, -Math.toRadians(180));
+    private final Pose pickup23Pose = new Pose(24, 144 - 60, -Math.toRadians(180));
+    private final Pose pickup21Control = new Pose(53, 144 - 52);
 
-    private final Pose pickup31Pose = new Pose(144-37, 36, Math.PI);
-    private final Pose pickup32Pose = new Pose(144-30, 36, Math.PI);
-    private final Pose pickup33Pose = new Pose(144-25, 36, Math.PI);
-    private final Pose pickup31Control = new Pose(144-60, 48);
+    private final Pose pickup31Pose = new Pose(37, 144 - 36, -Math.toRadians(180));
+    private final Pose pickup32Pose = new Pose(30, 144 - 36, -Math.toRadians(180));
+    private final Pose pickup33Pose = new Pose(25, 144 - 36, -Math.toRadians(180));
+    private final Pose pickup31Control = new Pose(60, 144 - 48);
 
-    private final Pose gatePose = new Pose(144-18, 73, Math.PI);
-    private final Pose gateControl = new Pose(144-24, 75);
+    private final Pose gatePose = new Pose(18, 144 - 73, -Math.toRadians(180));
+    private final Pose gateControl = new Pose(24, 144 - 75);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
     private PathChain[] pickupPaths2;
     private PathChain[] pickupPaths3;
     private PathChain returnToShootPath;
+    private PathChain finalPath;
 
     private int cycle = 0;
     private int pickupState = 0;
     private boolean pickupStarted = false;
     private boolean returningToShoot = false;
+    private boolean finalPathStarted = false;
 
     private boolean preloadDelayDone = false;
     private long preloadDelayEnd = 0;
@@ -151,6 +154,20 @@ public class Arti12RedFront extends OpMode {
         long now = System.currentTimeMillis();
 
         follower.update();
+
+        if (cycle >= 3) {
+            updateTurretZero();
+            if (!finalPathStarted) {
+                finalPath = follower.pathBuilder()
+                        .addPath(new BezierLine(follower.getPose(), finalPose))
+                        .setLinearHeadingInterpolation(follower.getPose().getHeading(), finalPose.getHeading())
+                        .build();
+                follower.followPath(finalPath, true);
+                finalPathStarted = true;
+            }
+            return;
+        }
+
         updateTurret();
 
         if (shootState == ShootState.IDLE && !follower.isBusy()) {
@@ -171,7 +188,10 @@ public class Arti12RedFront extends OpMode {
             return;
         }
 
-        PathChain[] active = cycle == 0 ? pickupPaths1 : (cycle == 1 ? pickupPaths2 : pickupPaths3);
+        PathChain[] active;
+        if (cycle == 0) active = pickupPaths1;
+        else if (cycle == 1) active = pickupPaths2;
+        else active = pickupPaths3;
 
         if (!pickupStarted) {
             pickupStarted = true;
@@ -186,7 +206,7 @@ public class Arti12RedFront extends OpMode {
                 setSpindexIntakePosition(pickupState);
                 follower.followPath(active[pickupState], true);
             } else {
-                Pose last = cycle == 0 ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
+                Pose last = (cycle == 0) ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
 
                 if (cycle == 0) {
                     returnToShootPath = follower.pathBuilder()
@@ -291,7 +311,7 @@ public class Arti12RedFront extends OpMode {
 
         double dx = goalX - robotPose.getX();
         double dy = goalY - robotPose.getY();
-        double targetAngle = -(Math.atan2(dy, dx) - robotPose.getHeading());
+        double targetAngle = Math.atan2(dy, dx) - robotPose.getHeading();
 
         double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
         int targetTicks = turretZero + (int) (targetAngle * ticksPerRadian);
@@ -312,6 +332,13 @@ public class Arti12RedFront extends OpMode {
         }
 
         turret.setPower(turretPower);
+    }
+
+    private void updateTurretZero() {
+        int error = -turret.getCurrentPosition();
+        double power = Kp_ZERO * error;
+        power = Math.max(-0.4, Math.min(0.4, power));
+        turret.setPower(power);
     }
 
     private void setSpindex(int index) {
