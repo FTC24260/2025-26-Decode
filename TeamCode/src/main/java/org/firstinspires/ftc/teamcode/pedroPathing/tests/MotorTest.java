@@ -11,13 +11,12 @@ public class MotorTest extends OpMode {
     public DcMotor ShooterR;
 
     public void init() {
-        ShooterL = hardwareMap.get(DcMotor.class, "ShooterL");
+        ShooterL = hardwareMap.get(DcMotor.class, "intake");
         ShooterR = hardwareMap.get(DcMotor.class, "ShooterR");
 
     }
 
     public void loop() {
-        ShooterR.setPower(0.1);
         ShooterL.setPower(0.1);
     }
 }

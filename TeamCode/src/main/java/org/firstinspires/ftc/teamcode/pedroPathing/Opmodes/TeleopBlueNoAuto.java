@@ -115,7 +115,7 @@ public class TeleopBlueNoAuto extends OpMode {
 
         if (a && !lastA && shooterState == ShooterState.IDLE) {
             shooterState = ShooterState.BALL1_POS;
-            stateTimer = now + 500;
+            stateTimer = now + 300;
         }
 
         if (b && !lastB && shooterState == ShooterState.IDLE) {
@@ -138,14 +138,14 @@ public class TeleopBlueNoAuto extends OpMode {
             case WAIT_HIGH:
                 if (now >= stateTimer) {
                     shooterState = ShooterState.BALL1_POS;
-                    stateTimer = now + 500;
+                    stateTimer = now + 400;
                 }
                 break;
 
             case BALL1_POS:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[0]);
-                    stateTimer = now + 500;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL1_FLICK_UP;
                 }
                 break;
@@ -153,7 +153,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL1_FLICK_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 250;
+                    stateTimer = now + 180;
                     shooterState = ShooterState.BALL1_FLICK_DOWN;
                 }
                 break;
@@ -161,7 +161,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL1_FLICK_DOWN:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 250;
+                    stateTimer = now + 180;
                     shooterState = ShooterState.BALL2_POS;
                 }
                 break;
@@ -169,7 +169,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL2_POS:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[1]);
-                    stateTimer = now + 550;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL2_FLICK_UP;
                 }
                 break;
@@ -177,7 +177,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL2_FLICK_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 250;
+                    stateTimer = now + 180;
                     shooterState = ShooterState.BALL2_FLICK_DOWN;
                 }
                 break;
@@ -185,7 +185,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL2_FLICK_DOWN:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 250;
+                    stateTimer = now + 180;
                     shooterState = ShooterState.BALL3_POS;
                 }
                 break;
@@ -193,7 +193,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL3_POS:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[2]);
-                    stateTimer = now + 550;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL3_FLICK_UP;
                 }
                 break;
@@ -201,7 +201,7 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL3_FLICK_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 500;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL3_FLICK_DOWN;
                 }
                 break;
