@@ -5,13 +5,13 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
-//@TeleOp(name = "Spindex Position Test")
+@TeleOp(name = "Spindex Position Test")
 public class SpindexPositionTest extends OpMode {
 
     private Servo leftIndex, rightIndex;
 
     // Spindex positions (RB / LB)
-    private final double[] positions = {0.3, 0.4, 0.31};
+    private final double[] positions = {0.22, 0.312, 0.405};
     private int currentIndex = 0;
 
     // A-button toggle positions
@@ -78,7 +78,7 @@ public class SpindexPositionTest extends OpMode {
 
     private void setSpindexPosition(int index) {
         double pos = positions[index];
-        leftIndex.setPosition(pos);
+        leftIndex.setPosition(pos + 0.004);
         rightIndex.setPosition(pos);
     }
 }
