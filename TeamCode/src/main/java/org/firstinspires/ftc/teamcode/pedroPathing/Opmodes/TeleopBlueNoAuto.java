@@ -20,46 +20,36 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] shootPositions = {0.22, 0.312, 0.405};
-    private final double[] intakePositions = {0.084, 0.178, 0.268};
+    private final double[] shootPositions = {0.144, 0.236, 0.33};
+    private final double[] intakePositions = {0.01, 0.104, 0.19};
 
     private final double flickerUp = 0.575;
-    private final double flickerDown = 0.795;
+    private final double flickerDown = 0.798;
 
     private static final double SERVO_DEADZONE = 0.004;
     private static final long SENSOR_IGNORE_MS = 800;
+    private static final double SHOOTER_VELOCITY = 900;
 
     private double lastIndexPos = -1;
     private int currentIndex = 0;
     private long ignoreSensorUntil = 0;
 
-    private static final double SHOOTER_BIG_CLOSE = 1400;
-    private static final double SHOOTER_BIG_FAR = 2000;
-    private static final double SHOOTER_SMALL_CLOSE = 2000;
-    private static final double SHOOTER_SMALL_FAR = 2000;
-
     private enum ShooterState {
         IDLE,
-        RAMP_UP, WAIT_HIGH,
+        WAIT_SPINUP,
         BALL1_POS, BALL1_FLICK_UP, BALL1_FLICK_DOWN,
         BALL2_POS, BALL2_FLICK_UP, BALL2_FLICK_DOWN,
         BALL3_POS, BALL3_FLICK_UP, BALL3_FLICK_DOWN,
-        WAIT_AFTER, RAMP_DOWN
+        WAIT_AFTER
     }
 
     private ShooterState shooterState = ShooterState.IDLE;
     private long stateTimer = 0;
-
-    private double requestedShooterVelocity = 0;
-    private long requestedDelay = 0;
-
     private boolean lastA = false;
-    private boolean lastB = false;
-    private boolean lastX = false;
-    private boolean lastY = false;
 
     @Override
     public void init() {
+
         shooterR = hardwareMap.get(DcMotorEx.class, "ShooterR");
         shooterL = hardwareMap.get(DcMotorEx.class, "ShooterL");
         intake = hardwareMap.get(DcMotorEx.class, "intake");
@@ -91,13 +81,15 @@ public class TeleopBlueNoAuto extends OpMode {
     @Override
     public void start() {
         follower.startTeleopDrive();
-        shooterR.setVelocity(SHOOTER_BIG_CLOSE);
-        shooterL.setVelocity(SHOOTER_BIG_CLOSE);
     }
 
     @Override
     public void loop() {
+
         long now = System.currentTimeMillis();
+
+        shooterR.setVelocity(SHOOTER_VELOCITY);
+        shooterL.setVelocity(SHOOTER_VELOCITY);
 
         follower.update();
         follower.setTeleOpDrive(
@@ -107,84 +99,75 @@ public class TeleopBlueNoAuto extends OpMode {
                 true
         );
 
-        intake.setPower(gamepad1.right_trigger - gamepad1.left_trigger);
-
+        if (gamepad1.left_trigger > 0.1) {
+            intake.setPower(-1);
+        }
+        else if (gamepad1.right_trigger > 0.1) {
+            intake.setPower(1);
+        }
+        else {
+            intake.setPower(0);
+        }
         if (shooterState == ShooterState.IDLE &&
                 now >= ignoreSensorUntil &&
                 currentIndex < 3 &&
                 !detectColor().equals("unknown")) {
+
             currentIndex++;
-            setSpindexIntakePosition(currentIndex);
             ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+
+            if (currentIndex < 3) {
+                setSpindexIntakePosition(currentIndex);
+            } else {
+                applyServoDeadzone(shootPositions[0]);
+            }
         }
 
         boolean a = gamepad1.a;
-        boolean b = gamepad1.b;
-        boolean x = gamepad1.x;
-        boolean y = gamepad1.y;
 
         if (shooterState == ShooterState.IDLE && currentIndex > 0) {
             if (a && !lastA) {
-                requestedShooterVelocity = SHOOTER_BIG_CLOSE;
-                requestedDelay = 400;
-                shooterState = ShooterState.RAMP_UP;
-            } else if (b && !lastB) {
-                requestedShooterVelocity = SHOOTER_BIG_FAR;
-                requestedDelay = 600;
-                shooterState = ShooterState.RAMP_UP;
-            } else if (y && !lastY) {
-                requestedShooterVelocity = SHOOTER_SMALL_CLOSE;
-                requestedDelay = 800;
-                shooterState = ShooterState.RAMP_UP;
-            } else if (x && !lastX) {
-                requestedShooterVelocity = SHOOTER_SMALL_FAR;
-                requestedDelay = 900;
-                shooterState = ShooterState.RAMP_UP;
+                stateTimer = now + 300;
+                shooterState = ShooterState.WAIT_SPINUP;
             }
         }
 
         switch (shooterState) {
 
             case IDLE:
-                shooterR.setVelocity(SHOOTER_BIG_CLOSE);
-                shooterL.setVelocity(SHOOTER_BIG_CLOSE);
                 break;
 
-            case RAMP_UP:
-                shooterR.setVelocity(requestedShooterVelocity);
-                shooterL.setVelocity(requestedShooterVelocity);
-                stateTimer = now + requestedDelay;
-                shooterState = ShooterState.WAIT_HIGH;
-                break;
-
-            case WAIT_HIGH:
+            case WAIT_SPINUP:
                 if (now >= stateTimer) {
                     shooterState = ShooterState.BALL1_POS;
-                    stateTimer = now + 300;
+                    stateTimer = now + 200;
                 }
                 break;
 
             case BALL1_POS:
                 if (now >= stateTimer) {
+                    applyServoDeadzone(shootPositions[0]);
                     intake.setPower(-1);
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL1_FLICK_UP;
                 }
                 break;
 
             case BALL1_FLICK_UP:
                 flicker.setPosition(flickerUp);
-                stateTimer = now + 180;
+                stateTimer = now + 200;
                 shooterState = ShooterState.BALL1_FLICK_DOWN;
                 break;
 
             case BALL1_FLICK_DOWN:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
+
                     if (currentIndex >= 2) {
-                        stateTimer = now + 180;
+                        stateTimer = now + 400;
                         shooterState = ShooterState.BALL2_POS;
                     } else {
-                        stateTimer = now + 300;
+                        stateTimer = now + 400;
                         shooterState = ShooterState.WAIT_AFTER;
                     }
                 }
@@ -193,25 +176,26 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL2_POS:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[1]);
-                    stateTimer = now + 300;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL2_FLICK_UP;
                 }
                 break;
 
             case BALL2_FLICK_UP:
                 flicker.setPosition(flickerUp);
-                stateTimer = now + 180;
+                stateTimer = now + 200;
                 shooterState = ShooterState.BALL2_FLICK_DOWN;
                 break;
 
             case BALL2_FLICK_DOWN:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
+
                     if (currentIndex >= 3) {
-                        stateTimer = now + 180;
+                        stateTimer = now + 400;
                         shooterState = ShooterState.BALL3_POS;
                     } else {
-                        stateTimer = now + 300;
+                        stateTimer = now + 400;
                         shooterState = ShooterState.WAIT_AFTER;
                     }
                 }
@@ -220,21 +204,21 @@ public class TeleopBlueNoAuto extends OpMode {
             case BALL3_POS:
                 if (now >= stateTimer) {
                     applyServoDeadzone(shootPositions[2]);
-                    stateTimer = now + 300;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.BALL3_FLICK_UP;
                 }
                 break;
 
             case BALL3_FLICK_UP:
                 flicker.setPosition(flickerUp);
-                stateTimer = now + 180;
+                stateTimer = now + 200;
                 shooterState = ShooterState.BALL3_FLICK_DOWN;
                 break;
 
             case BALL3_FLICK_DOWN:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 200;
+                    stateTimer = now + 400;
                     shooterState = ShooterState.WAIT_AFTER;
                 }
                 break;
@@ -243,19 +227,12 @@ public class TeleopBlueNoAuto extends OpMode {
                 if (now >= stateTimer) {
                     intake.setPower(0);
                     resetToIntake();
-                    shooterState = ShooterState.RAMP_DOWN;
+                    shooterState = ShooterState.IDLE;
                 }
-                break;
-
-            case RAMP_DOWN:
-                shooterState = ShooterState.IDLE;
                 break;
         }
 
         lastA = a;
-        lastB = b;
-        lastX = x;
-        lastY = y;
 
         double turretPower = 0;
         if (gamepad1.dpad_left) turretPower = 0.3;
