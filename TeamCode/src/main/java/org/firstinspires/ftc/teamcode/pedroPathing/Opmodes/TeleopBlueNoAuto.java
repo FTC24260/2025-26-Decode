@@ -20,8 +20,8 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] shootPositions = {0.144, 0.236, 0.33};
-    private final double[] intakePositions = {0.01, 0.104, 0.19};
+    private final double[] shootPositions = {0.01, 0.104, 0.19};
+    private final double[] intakePositions = {0.144, 0.236, 0.33};
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.798;
