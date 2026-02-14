@@ -33,6 +33,12 @@ public class TeleopBlueNoAuto extends OpMode {
     private double lastIndexPos = -1;
     private int currentIndex = 0;
     private long ignoreSensorUntil = 0;
+    private static final int TURRET_MIN = -300;
+    private static final int TURRET_MAX = 400;
+
+    private static final double TURRET_MIN_POWER = 0.3;
+    private static final double TURRET_MAX_POWER = 0.4;
+
 
     private enum ShooterState {
         IDLE,
@@ -184,10 +190,41 @@ public class TeleopBlueNoAuto extends OpMode {
                 break;
         }
 
+        double stick = gamepad1.left_stick_x;
+        int turretPos = turret.getCurrentPosition();
         double turretPower = 0;
-        if (gamepad1.dpad_left) turretPower = 0.3;
-        else if (gamepad1.dpad_right) turretPower = -0.3;
+
+        if (Math.abs(stick) > 0.05) {
+
+            double scaledPower = TURRET_MIN_POWER +
+                    (TURRET_MAX_POWER - TURRET_MIN_POWER) * Math.abs(stick);
+
+            if (stick > 0) {  // Turning positive direction
+
+                if (turretPos >= TURRET_MAX) {
+                    turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                    turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                    turret.setTargetPosition(TURRET_MIN);
+                    turretPos = TURRET_MIN;
+                } else {
+                    turretPower = scaledPower;
+                }
+
+            } else {  // Turning negative direction
+
+                if (turretPos <= TURRET_MIN) {
+                    turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                    turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                    turret.setTargetPosition(TURRET_MAX);
+                    turretPos = TURRET_MAX;
+                } else {
+                    turretPower = -scaledPower;
+                }
+            }
+        }
+
         turret.setPower(turretPower);
+
 
         telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Shooter Velocity", shooterR.getVelocity());
