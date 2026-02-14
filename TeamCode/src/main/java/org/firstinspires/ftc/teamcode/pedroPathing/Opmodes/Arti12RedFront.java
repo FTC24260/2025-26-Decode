@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "12 Red Front Mirrored")
+@Autonomous(name = "12 Red Front")
 public class Arti12RedFront extends OpMode {
 
     private Follower follower;
@@ -22,44 +22,36 @@ public class Arti12RedFront extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
-    private final double[] shootPositions = {0.31, 0.4, 0.49};
-    private final double[] intakePositions = {0.084, 0.174, 0.264};
-    private final double flickerUp = 0.54;
-    private final double flickerDown = 0.76;
+    private final double[] shootPositions = {0.28, 0.378, 0.467};
+    private final double[] intakePositions = {0.144, 0.236, 0.33};
+    private final double flickerUp = 0.575;
+    private final double flickerDown = 0.795;
 
-    private static final double SHOOTER_VELOCITY = 1340;
+    private static final double SHOOTER_VELOCITY = 1360;
 
-    private final int TURRET_MAX = 510;
-    private final int TURRET_MIN = -350;
-    private final double MAX_POWER_GOAL = 0.6;
-    private final double Kp_GOAL = 0.01;
-    private final double Kp_ZERO = 0.01;
-    private final double goalX = 15;
-    private final double goalY = 144;
-    private int turretZero;
+    private static final int TURRET_HOLD_POSITION = 140;
+    private static final double Kp_TURRET = 0.01;
+    private static final double MAX_TURRET_POWER = 0.5;
 
-    // Mirror all Y coordinates: y_mirror = 144 - y
-    // Mirror headings: heading_mirror = -heading
-    private Pose startPose = new Pose(131, 127, Math.toRadians(45));
-    private Pose shootPose = new Pose(87, 84, Math.toRadians(0));
-    private final Pose finalPose = new Pose(119, 73, Math.toRadians(0));
+    private Pose startPose = new Pose(112, 122, Math.toRadians(37));
+    private Pose shootPose = new Pose(83, 84, Math.toRadians(0));
+    private final Pose finalPose = new Pose(111, 73, Math.toRadians(0));
 
-    private final Pose pickup11Pose = new Pose(108, 84, Math.toRadians(0));
-    private final Pose pickup12Pose = new Pose(115, 84, Math.toRadians(0));
-    private final Pose pickup13Pose = new Pose(120, 84, Math.toRadians(0));
+    private final Pose pickup11Pose = new Pose(103, 84, Math.toRadians(0));
+    private final Pose pickup12Pose = new Pose(109, 84, Math.toRadians(0));
+    private final Pose pickup13Pose = new Pose(116, 84, Math.toRadians(0));
+    private final Pose gatePose = new Pose(121, 74, Math.toRadians(0));
 
-    private final Pose pickup21Pose = new Pose(108, 60, Math.toRadians(0));
-    private final Pose pickup22Pose = new Pose(115, 60, Math.toRadians(0));
-    private final Pose pickup23Pose = new Pose(120, 60, Math.toRadians(0));
+
+    private final Pose pickup21Pose = new Pose(102, 60, Math.toRadians(0));
+    private final Pose pickup22Pose = new Pose(108, 60, Math.toRadians(0));
+    private final Pose pickup23Pose = new Pose(115, 60, Math.toRadians(0));
     private final Pose pickup21Control = new Pose(91, 52);
 
-    private final Pose pickup31Pose = new Pose(107, 36, Math.toRadians(0));
-    private final Pose pickup32Pose = new Pose(114, 36, Math.toRadians(0));
-    private final Pose pickup33Pose = new Pose(119, 36, Math.toRadians(0));
-    private final Pose pickup31Control = new Pose(126, 48);
-
-    private final Pose gatePose = new Pose(126, 73, Math.toRadians(0));
-    private final Pose gateControl = new Pose(120, 75);
+    private final Pose pickup31Pose = new Pose(101, 36, Math.toRadians(0));
+    private final Pose pickup32Pose = new Pose(108, 36, Math.toRadians(0));
+    private final Pose pickup33Pose = new Pose(115, 36, Math.toRadians(0));
+    private final Pose pickup31Control = new Pose(84, 48);
 
     private PathChain pathToShoot;
     private PathChain[] pickupPaths1;
@@ -76,6 +68,10 @@ public class Arti12RedFront extends OpMode {
 
     private boolean preloadDelayDone = false;
     private long preloadDelayEnd = 0;
+    private long autoStartTime;
+    private boolean waitAtShootPoseDone = false;
+    private long shootPoseWaitEnd = 0;
+
 
     private enum ShootState {
         IDLE,
@@ -110,7 +106,6 @@ public class Arti12RedFront extends OpMode {
         turret.setDirection(DcMotor.Direction.REVERSE);
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        turretZero = turret.getCurrentPosition();
 
         setSpindex(0);
         flicker.setPosition(flickerDown);
@@ -143,45 +138,73 @@ public class Arti12RedFront extends OpMode {
 
     @Override
     public void start() {
+        autoStartTime = System.currentTimeMillis();
+
         follower.followPath(pathToShoot, true);
         shooterR.setVelocity(SHOOTER_VELOCITY);
         shooterL.setVelocity(SHOOTER_VELOCITY);
         intake.setPower(-1);
     }
 
+
     @Override
     public void loop() {
-        long now = System.currentTimeMillis();
 
         follower.update();
 
+        // SIMPLE TURRET HOLD AT -150
+        int error = TURRET_HOLD_POSITION - turret.getCurrentPosition();
+        double power = Kp_TURRET * error;
+        power = Math.max(-MAX_TURRET_POWER, Math.min(MAX_TURRET_POWER, power));
+        turret.setPower(power);
+
+        long now = System.currentTimeMillis();
+
         if (cycle >= 3) {
-            updateTurretZero();
-            if (!finalPathStarted) {
+
+            if (shootState != ShootState.DONE) {
+                updateShooting(now);
+                return;
+            }
+
+            if (!finalPathStarted && !follower.isBusy()) {
+
                 finalPath = follower.pathBuilder()
                         .addPath(new BezierLine(follower.getPose(), finalPose))
-                        .setLinearHeadingInterpolation(follower.getPose().getHeading(), finalPose.getHeading())
+                        .setLinearHeadingInterpolation(
+                                follower.getPose().getHeading(),
+                                finalPose.getHeading())
                         .build();
+
                 follower.followPath(finalPath, true);
                 finalPathStarted = true;
             }
+
             return;
         }
-
-        updateTurret();
-
         if (shootState == ShootState.IDLE && !follower.isBusy()) {
-            if (!preloadDelayDone) {
-                preloadDelayEnd = now + 500;
-                preloadDelayDone = true;
-                return;
+            // Only do this for the first cycle
+            if (cycle == 0 && !waitAtShootPoseDone) {
+//                shootPoseWaitEnd = now + 1500; // wait 1 second
+                waitAtShootPoseDone = true;
+                return; // keep looping until 1 second passes
             }
-            if (now >= preloadDelayEnd) {
+
+            // After the 1 second wait, start rapid fire
+            if (cycle == 0 && waitAtShootPoseDone && now >= shootPoseWaitEnd) {
+                flicker.setPosition(flickerUp);
+                shootTimer = now + 200;
+                shootState = ShootState.FLICK1_UP;
+            }
+
+            // For other cycles, start rapid fire immediately
+            if (cycle != 0) {
                 flicker.setPosition(flickerUp);
                 shootTimer = now + 200;
                 shootState = ShootState.FLICK1_UP;
             }
         }
+
 
         if (shootState != ShootState.DONE) {
             updateShooting(now);
@@ -210,10 +233,10 @@ public class Arti12RedFront extends OpMode {
 
                 if (cycle == 0) {
                     returnToShootPath = follower.pathBuilder()
-                            .addPath(new BezierCurve(pickup13Pose, gateControl, gatePose))
-                            .setConstantHeadingInterpolation(pickup13Pose.getHeading())
+                            .addPath(new BezierLine(pickup13Pose, gatePose))
+                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), gatePose.getHeading())
                             .addPath(new BezierLine(gatePose, shootPose))
-                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
+                            .setLinearHeadingInterpolation(gatePose.getHeading(), shootPose.getHeading() - Math.toRadians(3))
                             .build();
                 } else {
                     returnToShootPath = follower.pathBuilder()
@@ -221,6 +244,7 @@ public class Arti12RedFront extends OpMode {
                             .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())
                             .build();
                 }
+
 
                 follower.followPath(returnToShootPath, true);
                 returningToShoot = true;
@@ -253,7 +277,7 @@ public class Arti12RedFront extends OpMode {
             case FLICK1_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(1);
-                    shootTimer = now + 800;
+                    shootTimer = now + 500;
                     shootState = ShootState.SPINDEX1_WAIT;
                 }
                 break;
@@ -277,7 +301,7 @@ public class Arti12RedFront extends OpMode {
             case FLICK2_DOWN:
                 if (now >= shootTimer) {
                     setSpindex(2);
-                    shootTimer = now + 800;
+                    shootTimer = now + 500;
                     shootState = ShootState.SPINDEX2_WAIT;
                 }
                 break;
@@ -293,7 +317,7 @@ public class Arti12RedFront extends OpMode {
             case FLICK3_UP:
                 if (now >= shootTimer) {
                     flicker.setPosition(flickerDown);
-                    shootTimer = now + 200;
+                    shootTimer = now + 500;
                     shootState = ShootState.FLICK3_DOWN;
                 }
                 break;
@@ -304,41 +328,6 @@ public class Arti12RedFront extends OpMode {
                 }
                 break;
         }
-    }
-
-    private void updateTurret() {
-        Pose robotPose = follower.getPose();
-
-        double dx = goalX - robotPose.getX();
-        double dy = goalY - robotPose.getY();
-        double targetAngle = Math.atan2(dy, dx) - robotPose.getHeading();
-
-        double ticksPerRadian = (TURRET_MAX - TURRET_MIN) / (2 * Math.PI);
-        int targetTicks = turretZero + (int) (targetAngle * ticksPerRadian);
-
-        int currentPos = turret.getCurrentPosition();
-        int delta = targetTicks - currentPos;
-
-        int maxRange = TURRET_MAX - TURRET_MIN;
-        while (delta > maxRange / 2) delta -= maxRange;
-        while (delta < -maxRange / 2) delta += maxRange;
-
-        double turretPower = Kp_GOAL * delta;
-        turretPower = Math.max(-MAX_POWER_GOAL, Math.min(MAX_POWER_GOAL, turretPower));
-
-        if ((currentPos >= TURRET_MAX && turretPower > 0) ||
-                (currentPos <= TURRET_MIN && turretPower < 0)) {
-            turretPower = 0;
-        }
-
-        turret.setPower(turretPower);
-    }
-
-    private void updateTurretZero() {
-        int error = -turret.getCurrentPosition();
-        double power = Kp_ZERO * error;
-        power = Math.max(-0.4, Math.min(0.4, power));
-        turret.setPower(power);
     }
 
     private void setSpindex(int index) {

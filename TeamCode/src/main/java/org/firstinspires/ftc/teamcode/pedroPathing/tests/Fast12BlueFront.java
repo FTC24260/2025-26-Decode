@@ -13,7 +13,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants.Constants;
 
-@Autonomous(name = "12 Blue Front Fast")
+//@Autonomous(name = "12 Blue Front Fast")
 public class Fast12BlueFront extends OpMode {
 
     private Follower follower;
