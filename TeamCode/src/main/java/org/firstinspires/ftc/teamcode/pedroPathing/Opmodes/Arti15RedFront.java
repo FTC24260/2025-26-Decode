@@ -22,7 +22,7 @@ public class Arti15RedFront extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
-    private final double[] shootPositions = {0.28, 0.378, 0.467};
+    private final double[] shootPositions = {0.29, 0.378, 0.472};
     private final double[] intakePositions = {0.144, 0.236, 0.33};
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.795;

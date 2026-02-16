@@ -20,7 +20,7 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] shootPositions = {0.28, 0.378, 0.467};
+    private final double[] shootPositions = {0.29, 0.378, 0.472};
     private final double[] intakePositions = {0.144, 0.236, 0.33};
 
     private final double flickerUp = 0.575;
@@ -191,11 +191,11 @@ public class TeleopBlueNoAuto extends OpMode {
         }
 
         if (gamepad1.dpad_left) {
-            turret.setPower(0.25);
+            turret.setPower(0.3);
         }
 
         else if (gamepad1.dpad_right) {
-            turret.setPower(-0.25);
+            turret.setPower(-0.3);
         }
         else {
             turret.setPower(0);
