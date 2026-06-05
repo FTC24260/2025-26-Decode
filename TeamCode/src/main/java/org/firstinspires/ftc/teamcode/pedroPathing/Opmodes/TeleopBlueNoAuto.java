@@ -20,8 +20,8 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] shootPositions = {0.29, 0.378, 0.472};
-    private final double[] intakePositions = {0.144, 0.236, 0.33};
+    private final double[] shootPositions = {0.1756, 0.2956, 0.4216};
+    private final double[] intakePositions = {0.2311, 0.3589, 0.4756};
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.798;
@@ -123,8 +123,10 @@ public class TeleopBlueNoAuto extends OpMode {
 
             if (currentIndex < 3) {
                 setSpindexIntakePosition(currentIndex);
+                intake.setPower(1);
             } else {
                 applyServoDeadzone(shootPositions[0]);
+                intake.setPower(0);
             }
         }
 

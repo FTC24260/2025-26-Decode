@@ -11,7 +11,9 @@ public class SpindexPositionTest extends OpMode {
     private Servo leftIndex, rightIndex;
 
     // Spindex positions (RB / LB)
-    private final double[] positions = {0.28, 0.378, 0.467};
+    private final double[] positions = {0.1756, 0.2956, 0.4216};
+    //0.2311 | 0.3589 | 0.4756 | INTAKE
+    //0.1756 | 0.2956 | 0.4216 | SHOOT
     private int currentIndex = 0;
 
     // A-button toggle positions
@@ -38,6 +40,8 @@ public class SpindexPositionTest extends OpMode {
 
         boolean rb = gamepad1.right_bumper;
         boolean lb = gamepad1.left_bumper;
+        double rt = gamepad1.right_trigger;
+        double lt = gamepad1.left_trigger;
         boolean a  = gamepad1.a;
 
         /* =====================
@@ -62,14 +66,26 @@ public class SpindexPositionTest extends OpMode {
             setSpindexPosition(currentIndex);
         }
 
+        // Right trigger -> Rotate CW
+        if (rt > 0.1){
+            double pos = rightIndex.getPosition();
+            rightIndex.setPosition(pos + 0.0001);
+            leftIndex.setPosition(rightIndex.getPosition() + 0.004);
+        }
+        // Left trigger -> Rotate CCW
+        if (lt > 0.1){
+            double pos = rightIndex.getPosition();
+            rightIndex.setPosition(pos - 0.0001);
+            leftIndex.setPosition(rightIndex.getPosition() + 0.004);
+        }
+
+
         prevRB = rb;
         prevLB = lb;
 
         /* =====================
            A BUTTON TOGGLE
            ===================== */
-
-
 
         telemetry.addData("Spindex Index", currentIndex);
         telemetry.addData("Left Servo Pos", leftIndex.getPosition());
