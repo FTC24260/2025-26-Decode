@@ -123,10 +123,8 @@ public class TeleopBlueNoAuto extends OpMode {
 
             if (currentIndex < 3) {
                 setSpindexIntakePosition(currentIndex);
-                intake.setPower(1);
             } else {
                 applyServoDeadzone(shootPositions[0]);
-                intake.setPower(0);
             }
         }
 
