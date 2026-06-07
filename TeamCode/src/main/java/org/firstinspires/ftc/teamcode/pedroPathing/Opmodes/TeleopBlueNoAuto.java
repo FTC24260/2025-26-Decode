@@ -20,8 +20,8 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] shootPositions = {0.29, 0.378, 0.472};
-    private final double[] intakePositions = {0.144, 0.236, 0.33};
+    private final double[] shootPositions = {0.1756, 0.2956, 0.4216};
+    private final double[] intakePositions = {0.2311, 0.3589, 0.4756};
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.798;
@@ -103,9 +103,9 @@ public class TeleopBlueNoAuto extends OpMode {
 
         follower.update();
         follower.setTeleOpDrive(
-                -gamepad2.left_stick_y / 1.5,
-                -gamepad2.left_stick_x / 2,
-                -gamepad2.right_stick_x / 1.5,
+                -gamepad1.left_stick_y / 1.5,
+                -gamepad1.left_stick_x / 2,
+                -gamepad1.right_stick_x / 1.5,
                 true
         );
 
@@ -205,6 +205,7 @@ public class TeleopBlueNoAuto extends OpMode {
         telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Shooter Velocity", shooterR.getVelocity());
         telemetry.addData("Indexed Balls", currentIndex);
+        telemetry.addData("Color detection", detectColor());
         telemetry.update();
     }
 
@@ -220,14 +221,15 @@ public class TeleopBlueNoAuto extends OpMode {
         int g = colorSensor.green();
         int b = colorSensor.blue();
 
-        if (g > 1.2 * r && g > 1.2 * b && g > 20) return "green";
+        if (g > 1.25* r && g > 1.5 * b && g > 8) return "green";
 
         int maxRB = Math.max(r, b);
         int minRB = Math.min(r, b);
 
-        if (maxRB > 40 && minRB >= 0.5 * maxRB && g < 0.7 * maxRB) return "purple";
+        if (maxRB > 25 && minRB >= 0 * maxRB && g < maxRB) return "purple";
 
         return "unknown";
+
     }
 
     private void setSpindexIntakePosition(int index) {
