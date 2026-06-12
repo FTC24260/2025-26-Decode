@@ -27,7 +27,7 @@ public class Arti12RedFront extends OpMode {
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.795;
 
-    private static final double SHOOTER_VELOCITY = 1360;
+    private static final double SHOOTER_VELOCITY = 1425;
 
     private static final int TURRET_HOLD_POSITION = 140;
     private static final double Kp_TURRET = 0.01;
@@ -39,18 +39,15 @@ public class Arti12RedFront extends OpMode {
 
     private final Pose pickup11Pose = new Pose(103, 84, Math.toRadians(0));
     private final Pose pickup12Pose = new Pose(109, 84, Math.toRadians(0));
-    private final Pose pickup13Pose = new Pose(116, 84, Math.toRadians(0));
+    private final Pose pickup13Pose = new Pose(120, 84, Math.toRadians(0)); //116
     private final Pose gatePose = new Pose(121, 74, Math.toRadians(0));
-
-
-    private final Pose pickup21Pose = new Pose(102, 60, Math.toRadians(0));
+    private final Pose pickup21Pose = new Pose(100, 59, Math.toRadians(0));
     private final Pose pickup22Pose = new Pose(108, 60, Math.toRadians(0));
-    private final Pose pickup23Pose = new Pose(115, 60, Math.toRadians(0));
+    private final Pose pickup23Pose = new Pose(120, 60, Math.toRadians(0)); //115
     private final Pose pickup21Control = new Pose(85, 52);
-
-    private final Pose pickup31Pose = new Pose(101, 36, Math.toRadians(0));
+    private final Pose pickup31Pose = new Pose(99, 35, Math.toRadians(0));
     private final Pose pickup32Pose = new Pose(108, 36, Math.toRadians(0));
-    private final Pose pickup33Pose = new Pose(115, 36, Math.toRadians(0));
+    private final Pose pickup33Pose = new Pose(120, 36, Math.toRadians(0)); //115
     private final Pose pickup31Control = new Pose(77, 48);
 
     private PathChain pathToShoot;
@@ -220,14 +217,14 @@ public class Arti12RedFront extends OpMode {
             pickupStarted = true;
             pickupState = 0;
             setSpindexIntakePosition(0);
-            follower.followPath(active[0], 0.6, true);
+            follower.followPath(active[0], 0.6, true); //Init value 0.6
         }
 
         if (pickupStarted && pickupState < active.length && !follower.isBusy()) {
             pickupState++;
             if (pickupState < active.length) {
                 setSpindexIntakePosition(pickupState);
-                follower.followPath(active[pickupState], 0.6, true);
+                follower.followPath(active[pickupState], 1, true); //Init value 0.6
             } else {
                 Pose last = (cycle == 0) ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
 
