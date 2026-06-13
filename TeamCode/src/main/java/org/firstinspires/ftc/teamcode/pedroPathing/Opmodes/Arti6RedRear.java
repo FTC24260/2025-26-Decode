@@ -22,13 +22,14 @@ public class Arti6RedRear extends OpMode {
 
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] shootPositions = {0.1756, 0.2956, 0.4216};
-    private final double[] intakePositions = {0.2311, 0.3589, 0.4756};
+    private final double[] intakePositions = {0.2933, 0.4050, 0.5250};
+    private final double[] shootPositions = {0.2306, 0.3467, 0.4689};
+
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.795;
 
-    private static final double SHOOTER_VELOCITY = 1830;
+    private static final double SHOOTER_VELOCITY = 1900;
     private static final int TURRET_TARGET = -186;
     private static final double Kp_TURRET = 0.01;
     private static final double MAX_TURRET_POWER = 0.6;

@@ -20,8 +20,9 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] shootPositions = {0.1756, 0.2956, 0.4216};
-    private final double[] intakePositions = {0.2311, 0.3589, 0.4756};
+    private final double[] intakePositions = {0.2933, 0.4050, 0.5250};
+    private final double[] shootPositions = {0.2306, 0.3467, 0.4689};
+
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.798;
@@ -206,6 +207,7 @@ public class TeleopBlueNoAuto extends OpMode {
         telemetry.addData("Shooter Velocity", shooterR.getVelocity());
         telemetry.addData("Indexed Balls", currentIndex);
         telemetry.addData("Color detection", detectColor());
+        telemetry.addData("Left Servo Pos", leftIndex.getPosition());
         telemetry.update();
     }
 

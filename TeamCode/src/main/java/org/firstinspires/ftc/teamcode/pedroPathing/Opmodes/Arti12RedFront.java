@@ -22,21 +22,20 @@ public class Arti12RedFront extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
-    private final double[] shootPositions = {0.1756, 0.2956, 0.4216};
-    private final double[] intakePositions = {0.2311, 0.3589, 0.4756};
+    private final double[] intakePositions = {0.2933, 0.4050, 0.5250};
+    private final double[] shootPositions = {0.2306, 0.3467, 0.4689};
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.795;
 
-    private static final double SHOOTER_VELOCITY = 1425;
+    private static final double SHOOTER_VELOCITY = 1430;
 
-    private static final int TURRET_HOLD_POSITION = 140;
+    private static final int TURRET_HOLD_POSITION = 138;
     private static final double Kp_TURRET = 0.01;
     private static final double MAX_TURRET_POWER = 0.5;
 
     private Pose startPose = new Pose(112, 122, Math.toRadians(37));
     private Pose shootPose = new Pose(83, 84, Math.toRadians(0));
     private final Pose finalPose = new Pose(111, 73, Math.toRadians(0));
-
     private final Pose pickup11Pose = new Pose(103, 84, Math.toRadians(0));
     private final Pose pickup12Pose = new Pose(109, 84, Math.toRadians(0));
     private final Pose pickup13Pose = new Pose(120, 84, Math.toRadians(0)); //116
