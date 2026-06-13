@@ -28,7 +28,7 @@ public class TeleopBlueNoAuto extends OpMode {
 
     private static final double SERVO_DEADZONE = 0.004;
     private static final long SENSOR_IGNORE_MS = 800;
-    private static final double SHOOTER_VELOCITY = 1370;
+    private static final double SHOOTER_VELOCITY = 1390;
 
     private double lastIndexPos = -1;
     private int currentIndex = 0;
