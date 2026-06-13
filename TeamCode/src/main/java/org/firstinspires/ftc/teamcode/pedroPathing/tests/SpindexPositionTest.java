@@ -12,8 +12,8 @@ public class SpindexPositionTest extends OpMode {
 
     // Spindex positions (RB / LB)
     private final double[] positions = {0.2311, 0.3589, 0.4756};
-    //0.2311 | 0.3589 | 0.4756 | INTAKE
-    //0.1756 | 0.2956 | 0.4216 | SHOOT
+    //0.2933 | 0.3589 | 0.4756 | INTAKE
+    //0.2261 | 0.2917 | 0.4106 | SHOOT
     private int currentIndex = 0;
 
     // A-button toggle positions
