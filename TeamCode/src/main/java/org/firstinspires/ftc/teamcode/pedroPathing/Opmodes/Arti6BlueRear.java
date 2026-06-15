@@ -22,8 +22,9 @@ public class Arti6BlueRear extends OpMode {
 
     private Servo leftIndex, rightIndex, flicker;
 
-    private final double[] intakePositions = {0.2933, 0.4050, 0.5250};
-    private final double[] shootPositions = {0.2306, 0.3467, 0.4689};
+    private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
+    private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
+
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.795;
@@ -37,9 +38,8 @@ public class Arti6BlueRear extends OpMode {
     private Pose p110 = new Pose(20, 9, Math.toRadians(180));
     private Pose p115 = new Pose(15, 9, Math.toRadians(180));
     private Pose p120 = new Pose(10, 9, Math.toRadians(180));
-
-    private PathChain to110;
     private PathChain to115;
+    private PathChain to110;
     private PathChain to120;
     private PathChain backToStart;
     private PathChain final110;

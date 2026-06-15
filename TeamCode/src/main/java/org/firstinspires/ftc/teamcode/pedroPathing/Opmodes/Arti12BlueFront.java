@@ -22,8 +22,8 @@ public class Arti12BlueFront extends OpMode {
     private Servo leftIndex, rightIndex, flicker;
     private DcMotor turret;
 
-    private final double[] intakePositions = {0.2933, 0.4050, 0.5250};
-    private final double[] shootPositions = {0.2306, 0.3467, 0.4689};
+    private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
+    private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.795;
 
@@ -48,7 +48,7 @@ public class Arti12BlueFront extends OpMode {
     private final Pose pickup23Pose = new Pose(25, 60, Math.toRadians(180));
     private final Pose pickup21Control = new Pose(53, 52);
 
-    private final Pose pickup31Pose = new Pose(41, 36, Math.toRadians(180));
+    private final Pose pickup31Pose = new Pose(40, 36, Math.toRadians(180));
     private final Pose pickup32Pose = new Pose(32, 36, Math.toRadians(180));
     private final Pose pickup33Pose = new Pose(27, 36, Math.toRadians(180));
     private final Pose pickup31Control = new Pose(60, 48);

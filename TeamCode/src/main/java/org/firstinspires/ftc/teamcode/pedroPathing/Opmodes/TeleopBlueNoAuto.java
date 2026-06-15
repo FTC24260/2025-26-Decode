@@ -20,9 +20,8 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
-    private final double[] intakePositions = {0.2933, 0.4050, 0.5250};
-    private final double[] shootPositions = {0.2306, 0.3467, 0.4689};
-
+        private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
+        private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
 
     private final double flickerUp = 0.575;
     private final double flickerDown = 0.798;
@@ -113,7 +112,7 @@ public class TeleopBlueNoAuto extends OpMode {
         if (gamepad1.left_trigger > 0.1) intake.setPower(-1);
         else if (gamepad1.right_trigger > 0.1) intake.setPower(1);
         else intake.setPower(0);
-
+//      gamepad1.
         if (shooterState == ShooterState.IDLE &&
                 now >= ignoreSensorUntil &&
                 currentIndex < 3 &&
@@ -192,18 +191,22 @@ public class TeleopBlueNoAuto extends OpMode {
         }
 
         if (gamepad1.dpad_left) {
-            turret.setPower(0.3);
+            turret.setPower(0.25);
         }
 
         else if (gamepad1.dpad_right) {
-            turret.setPower(-0.3);
+            turret.setPower(-0.25);
         }
         else {
             turret.setPower(0);
         }
-
-
-        telemetry.addData("Shooter State", shooterState);
+        if (gamepad1.b){
+            flicker.setPosition(flickerDown);
+        }
+        if (gamepad1.x) {
+            flicker.setPosition(flickerUp);
+        }
+            telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Shooter Velocity", shooterR.getVelocity());
         telemetry.addData("Indexed Balls", currentIndex);
         telemetry.addData("Color detection", detectColor());
