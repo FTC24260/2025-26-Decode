@@ -20,15 +20,19 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
+
         private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
         private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
 
-    private final double flickerUp = 0.575;
-    private final double flickerDown = 0.798;
+    private final double flickerUp = 0.333 ;
+    private final double flickerDown = 0.575;
+
 
     private static final double SERVO_DEADZONE = 0.004;
     private static final long SENSOR_IGNORE_MS = 800;
-    private static final double SHOOTER_VELOCITY = 1390;
+    private static final double SHOOTER_VELOCITY = 1430;
+
+    Servo rgbLight;
 
     private double lastIndexPos = -1;
     private int currentIndex = 0;
@@ -72,7 +76,9 @@ public class TeleopBlueNoAuto extends OpMode {
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
         flicker = hardwareMap.get(Servo.class, "flicker");
 
+
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
+        rgbLight = hardwareMap.get(Servo.class, "rgbIndicator");
 
         flicker.setPosition(flickerDown);
         applyServoDeadzone(intakePositions[0]);
@@ -112,7 +118,7 @@ public class TeleopBlueNoAuto extends OpMode {
         if (gamepad1.left_trigger > 0.1) intake.setPower(-1);
         else if (gamepad1.right_trigger > 0.1) intake.setPower(1);
         else intake.setPower(0);
-//      gamepad1.
+//      gamepad1
         if (shooterState == ShooterState.IDLE &&
                 now >= ignoreSensorUntil &&
                 currentIndex < 3 &&
@@ -149,7 +155,7 @@ public class TeleopBlueNoAuto extends OpMode {
                     applyServoDeadzone(shootPositions[shotIndex]);
                 }
 
-                stateTimer = now + 400;
+                stateTimer = now + 100;
                 shooterState = ShooterState.WAIT_POS;
                 break;
 
@@ -200,17 +206,34 @@ public class TeleopBlueNoAuto extends OpMode {
         else {
             turret.setPower(0);
         }
-        if (gamepad1.b){
+        if (gamepad1.x){
             flicker.setPosition(flickerDown);
         }
-        if (gamepad1.x) {
+        if (gamepad1.y) {
             flicker.setPosition(flickerUp);
         }
-            telemetry.addData("Shooter State", shooterState);
+        if (currentIndex == 3) {
+            double colordetect = 0.5;
+            rgbLight.setPosition(colordetect);  // ~1000µs
+        } else{
+            double colordetect = 0.6;
+            rgbLight.setPosition(colordetect);  // ~1000µs
+
+        }
+        /*
+        if (gamepad1.a) {
+            rgbLight.setPosition(0.0);  // ~1000µs
+        } else if (gamepad1.b) {
+            rgbLight.setPosition(0.5);  // ~1500µs (Yellow)
+        } else if (gamepad1.y) {
+            rgbLight.setPosition(1.0);  // ~2000µs
+        }
+    */
+        telemetry.addData("Shooter State", shooterState);
         telemetry.addData("Shooter Velocity", shooterR.getVelocity());
         telemetry.addData("Indexed Balls", currentIndex);
         telemetry.addData("Color detection", detectColor());
-        telemetry.addData("Left Servo Pos", leftIndex.getPosition());
+        telemetry.addData("Servo Position (commanded)", flicker.getPosition());
         telemetry.update();
     }
 

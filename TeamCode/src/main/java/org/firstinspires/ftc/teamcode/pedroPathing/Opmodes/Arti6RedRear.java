@@ -25,8 +25,8 @@ public class Arti6RedRear extends OpMode {
     private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
     private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
 
-    private final double flickerUp = 0.575;
-    private final double flickerDown = 0.795;
+    private final double flickerUp = 0.333 ;
+    private final double flickerDown = 0.575;
 
     private static final double SHOOTER_VELOCITY = 1900;
     private static final int TURRET_TARGET = -186;
