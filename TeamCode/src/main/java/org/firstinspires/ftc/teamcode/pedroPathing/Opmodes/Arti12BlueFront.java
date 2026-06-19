@@ -41,7 +41,7 @@ public class Arti12BlueFront extends OpMode {
     private final Pose pickup11Pose = new Pose(37, 84, Math.toRadians(180));
     private final Pose pickup12Pose = new Pose(30, 84, Math.toRadians(180));
     private final Pose pickup13Pose = new Pose(25, 84, Math.toRadians(180));
-//    private final Pose gatePose = new Pose(20.5, 80, Math.toRadians(180));
+    private final Pose gatePose = new Pose(18, 80, Math.toRadians(180));
 
 
     private final Pose pickup21Pose = new Pose(39, 60, Math.toRadians(180));
@@ -130,11 +130,16 @@ public class Arti12BlueFront extends OpMode {
         };
 
         pickupPaths3 = new PathChain[]{
+                follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup21Control))
+                        .setConstantHeadingInterpolation(pickup31Pose.getHeading()).build()
+        };
+
+        /*pickupPaths3 = new PathChain[]{
                 follower.pathBuilder().addPath(new BezierCurve(shootPose, pickup31Control, pickup31Pose))
                         .setConstantHeadingInterpolation(pickup31Pose.getHeading()).build(),
                 follower.pathBuilder().addPath(new BezierLine(pickup31Pose, pickup32Pose)).build(),
                 follower.pathBuilder().addPath(new BezierLine(pickup32Pose, pickup33Pose)).build()
-        };
+        }; */
     }
 
     @Override
@@ -232,14 +237,21 @@ public class Arti12BlueFront extends OpMode {
             } else {
                 Pose last = (cycle == 0) ? pickup13Pose : (cycle == 1 ? pickup23Pose : pickup33Pose);
 
-                if (cycle == 0) {
+                if (cycle == 1) { //0
                     returnToShootPath = follower.pathBuilder()
-                            //.addPath(new BezierLine(pickup13Pose, gatePose))
-                            .addPath(new BezierLine(pickup13Pose, shootPose))
-                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), shootPose.getHeading())
-                            //.setLinearHeadingInterpolation(gatePose.getHeading(), shootPose.getHeading())
+                            .addPath(new BezierLine(pickup23Pose, gatePose))
+                            .setLinearHeadingInterpolation(pickup23Pose.getHeading(), gatePose.getHeading())
+                            .addPath(new BezierLine(gatePose, shootPose))
+                            .setLinearHeadingInterpolation(gatePose.getHeading(), shootPose.getHeading())
                             .build();
-                } else {
+                } else if (cycle == 0) {
+                    returnToShootPath = follower.pathBuilder()
+                            .addPath(new BezierLine(pickup13Pose, gatePose))
+                            .setLinearHeadingInterpolation(pickup13Pose.getHeading(), gatePose.getHeading())
+                            .addPath(new BezierLine(gatePose, shootPose))
+                            .setLinearHeadingInterpolation(gatePose.getHeading(), shootPose.getHeading())
+                            .build();
+                } else{
                     returnToShootPath = follower.pathBuilder()
                             .addPath(new BezierLine(last, shootPose))
                             .setLinearHeadingInterpolation(last.getHeading(), shootPose.getHeading())

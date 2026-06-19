@@ -115,8 +115,8 @@ public class TeleopBlueNoAuto extends OpMode {
                 true
         );
 
-        if (gamepad1.left_trigger > 0.1) intake.setPower(-1);
-        else if (gamepad1.right_trigger > 0.1) intake.setPower(1);
+        if (gamepad2.left_trigger > 0.1) intake.setPower(-1);
+        else if (gamepad2.right_trigger > 0.1) intake.setPower(1);
         else intake.setPower(0);
 //      gamepad1
         if (shooterState == ShooterState.IDLE &&
@@ -134,7 +134,7 @@ public class TeleopBlueNoAuto extends OpMode {
             }
         }
 
-        boolean a = gamepad1.a;
+        boolean a = gamepad2.a;
 
         if (shooterState == ShooterState.IDLE && a && !lastA && currentIndex > 0) {
             ballsToShoot = currentIndex;
@@ -196,20 +196,20 @@ public class TeleopBlueNoAuto extends OpMode {
                 break;
         }
 
-        if (gamepad1.dpad_left) {
+        if (gamepad2.dpad_left) {
             turret.setPower(0.25);
         }
 
-        else if (gamepad1.dpad_right) {
+        else if (gamepad2.dpad_right) {
             turret.setPower(-0.25);
         }
         else {
             turret.setPower(0);
         }
-        if (gamepad1.x){
+        if (gamepad2.x){
             flicker.setPosition(flickerDown);
         }
-        if (gamepad1.y) {
+        if (gamepad2.y) {
             flicker.setPosition(flickerUp);
         }
         if (currentIndex == 3) {
