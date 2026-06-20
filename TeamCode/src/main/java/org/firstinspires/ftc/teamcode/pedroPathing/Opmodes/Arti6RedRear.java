@@ -106,11 +106,15 @@ public class Arti6RedRear extends OpMode {
         to120 = follower.pathBuilder().addPath(new BezierLine(p115, p120))
                 .setConstantHeadingInterpolation(startPose.getHeading()).build();
 
+        /*
+
         backToStart = follower.pathBuilder().addPath(new BezierLine(p120, startPose))
                 .setConstantHeadingInterpolation(startPose.getHeading()).build();
 
         final110 = follower.pathBuilder().addPath(new BezierLine(startPose, p110))
                 .setConstantHeadingInterpolation(startPose.getHeading()).build();
+
+         */
     }
 
     @Override

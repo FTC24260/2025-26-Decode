@@ -27,26 +27,26 @@ public class Arti12RedFront extends OpMode {
     private final double flickerUp = 0.333 ;
     private final double flickerDown = 0.575;
 
-    private static final double SHOOTER_VELOCITY = 1431;
+    private static final double SHOOTER_VELOCITY = 1432;
 
-    private static final int TURRET_HOLD_POSITION = 136;
+    private static final int TURRET_HOLD_POSITION = 132;
     private static final double Kp_TURRET = 0.01;
     private static final double MAX_TURRET_POWER = 0.5;
 
     private Pose startPose = new Pose(112, 122, Math.toRadians(37));
     private Pose shootPose = new Pose(83, 84, Math.toRadians(0));
-    private final Pose finalPose = new Pose(111, 73, Math.toRadians(0));
+    private final Pose finalPose = new Pose(106, 73, Math.toRadians(0));
     private final Pose pickup11Pose = new Pose(103, 84, Math.toRadians(0));
     private final Pose pickup12Pose = new Pose(109, 84, Math.toRadians(0));
     private final Pose pickup13Pose = new Pose(120, 84, Math.toRadians(0)); //116
     //private final Pose gatePose = new Pose(121, 74, Math.toRadians(0));
     private final Pose pickup21Pose = new Pose(100, 59, Math.toRadians(0));
     private final Pose pickup22Pose = new Pose(108, 60, Math.toRadians(0));
-    private final Pose pickup23Pose = new Pose(120, 60, Math.toRadians(0)); //115
+    private final Pose pickup23Pose = new Pose(116, 60, Math.toRadians(0)); //115
     private final Pose pickup21Control = new Pose(85, 52);
-    private final Pose pickup31Pose = new Pose(99, 35, Math.toRadians(0));
+    private final Pose pickup31Pose = new Pose(96, 35, Math.toRadians(0));
     private final Pose pickup32Pose = new Pose(108, 36, Math.toRadians(0));
-    private final Pose pickup33Pose = new Pose(122, 36, Math.toRadians(0)); //115
+    private final Pose pickup33Pose = new Pose(118, 36, Math.toRadians(0)); //115
     private final Pose pickup31Control = new Pose(77, 48);
 
     private PathChain pathToShoot;

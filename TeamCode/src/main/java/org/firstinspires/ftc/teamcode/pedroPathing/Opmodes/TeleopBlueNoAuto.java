@@ -20,29 +20,33 @@ public class TeleopBlueNoAuto extends OpMode {
     private ColorSensor colorSensor;
     private Follower follower;
 
+    private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
+    private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
 
-        private final double[] intakePositions = {0.2272, 0.3478, 0.4667};
-        private final double[] shootPositions = {0.1706, 0.2872, 0.4111};
-
-    private final double flickerUp = 0.333 ;
+    private final double flickerUp = 0.333;
     private final double flickerDown = 0.575;
-
 
     private static final double SERVO_DEADZONE = 0.004;
     private static final long SENSOR_IGNORE_MS = 800;
     private static final double SHOOTER_VELOCITY = 1430;
 
-    Servo rgbLight;
+    private static final long SPINDEXER_SETTLE_MS = 25;
+    private static final long FLICKER_UP_MS = 200;
+    private static final long FLICKER_DOWN_MS = 200;
+
+    private Servo rgbLight;
 
     private double lastIndexPos = -1;
     private int currentIndex = 0;
     private long ignoreSensorUntil = 0;
+
+    private boolean sensorReady = true;
+
     private static final int TURRET_MIN = -300;
     private static final int TURRET_MAX = 400;
 
     private static final double TURRET_MIN_POWER = 0.2;
     private static final double TURRET_MAX_POWER = 0.3;
-
 
     private enum ShooterState {
         IDLE,
@@ -76,12 +80,11 @@ public class TeleopBlueNoAuto extends OpMode {
         rightIndex = hardwareMap.get(Servo.class, "rightIndex");
         flicker = hardwareMap.get(Servo.class, "flicker");
 
-
         colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
         rgbLight = hardwareMap.get(Servo.class, "rgbIndicator");
 
         flicker.setPosition(flickerDown);
-        applyServoDeadzone(intakePositions[0]);
+        setSpindexPositionForce(intakePositions[0]);
 
         turret = hardwareMap.get(DcMotor.class, "turret");
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -92,6 +95,13 @@ public class TeleopBlueNoAuto extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(13, 127, Math.PI / 2));
         follower.update();
+
+        currentIndex = 0;
+        ballsToShoot = 0;
+        shotIndex = 0;
+        shooterState = ShooterState.IDLE;
+        sensorReady = true;
+        ignoreSensorUntil = 0;
     }
 
     @Override
@@ -104,6 +114,9 @@ public class TeleopBlueNoAuto extends OpMode {
 
         long now = System.currentTimeMillis();
 
+        String detectedColor = detectColor();
+        boolean seesBall = !detectedColor.equals("unknown");
+
         shooterR.setVelocity(SHOOTER_VELOCITY);
         shooterL.setVelocity(SHOOTER_VELOCITY);
 
@@ -115,29 +128,37 @@ public class TeleopBlueNoAuto extends OpMode {
                 true
         );
 
-        if (gamepad2.left_trigger > 0.1) intake.setPower(-1);
-        else if (gamepad2.right_trigger > 0.1) intake.setPower(1);
-        else intake.setPower(0);
-//      gamepad1
+        if (gamepad1.left_trigger > 0.1) {
+            intake.setPower(-1);
+        } else if (gamepad1.right_trigger > 0.1) {
+            intake.setPower(1);
+        } else {
+            intake.setPower(0);
+        }
+
         if (shooterState == ShooterState.IDLE &&
                 now >= ignoreSensorUntil &&
-                currentIndex < 3 &&
-                !detectColor().equals("unknown")) {
+                currentIndex < intakePositions.length) {
 
-            currentIndex++;
-            ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+            if (!seesBall) {
+                sensorReady = true;
+            } else if (sensorReady) {
+                currentIndex++;
+                sensorReady = false;
+                ignoreSensorUntil = now + SENSOR_IGNORE_MS;
 
-            if (currentIndex < 3) {
-                setSpindexIntakePosition(currentIndex);
-            } else {
-                applyServoDeadzone(shootPositions[0]);
+                if (currentIndex < intakePositions.length) {
+                    setSpindexIntakePosition(currentIndex);
+                } else {
+                    setSpindexPositionForce(shootPositions[0]);
+                }
             }
         }
 
-        boolean a = gamepad2.a;
+        boolean a = gamepad1.a;
 
         if (shooterState == ShooterState.IDLE && a && !lastA && currentIndex > 0) {
-            ballsToShoot = currentIndex;
+            ballsToShoot = Math.min(currentIndex, shootPositions.length);
             shotIndex = 0;
             shooterState = ShooterState.SET_POS;
         }
@@ -150,19 +171,15 @@ public class TeleopBlueNoAuto extends OpMode {
                 break;
 
             case SET_POS:
-
-                if (!(ballsToShoot == 3 && shotIndex == 0)) {
-                    applyServoDeadzone(shootPositions[shotIndex]);
-                }
-
-                stateTimer = now + 100;
+                setSpindexPositionForce(shootPositions[shotIndex]);
+                stateTimer = now + SPINDEXER_SETTLE_MS;
                 shooterState = ShooterState.WAIT_POS;
                 break;
 
             case WAIT_POS:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerUp);
-                    stateTimer = now + 200;
+                    stateTimer = now + FLICKER_UP_MS;
                     shooterState = ShooterState.WAIT_UP;
                 }
                 break;
@@ -170,14 +187,13 @@ public class TeleopBlueNoAuto extends OpMode {
             case WAIT_UP:
                 if (now >= stateTimer) {
                     flicker.setPosition(flickerDown);
-                    stateTimer = now + 200;
+                    stateTimer = now + FLICKER_DOWN_MS;
                     shooterState = ShooterState.WAIT_DOWN;
                 }
                 break;
 
             case WAIT_DOWN:
                 if (now >= stateTimer) {
-
                     shotIndex++;
 
                     if (shotIndex < ballsToShoot) {
@@ -189,51 +205,51 @@ public class TeleopBlueNoAuto extends OpMode {
                 break;
 
             case DONE:
-                applyServoDeadzone(intakePositions[0]);
+                setSpindexPositionForce(intakePositions[0]);
                 currentIndex = 0;
+                ballsToShoot = 0;
+                shotIndex = 0;
                 ignoreSensorUntil = now + SENSOR_IGNORE_MS;
+                sensorReady = false;
                 shooterState = ShooterState.IDLE;
                 break;
         }
 
-        if (gamepad2.dpad_left) {
+        if (gamepad1.dpad_left) {
             turret.setPower(0.25);
-        }
-
-        else if (gamepad2.dpad_right) {
+        } else if (gamepad1.dpad_right) {
             turret.setPower(-0.25);
-        }
-        else {
+        } else {
             turret.setPower(0);
         }
-        if (gamepad2.x){
+
+        if (gamepad1.x) {
             flicker.setPosition(flickerDown);
         }
-        if (gamepad2.y) {
+
+        if (gamepad1.y) {
             flicker.setPosition(flickerUp);
         }
-        if (currentIndex == 3) {
-            double colordetect = 0.5;
-            rgbLight.setPosition(colordetect);  // ~1000µs
-        } else{
-            double colordetect = 0.6;
-            rgbLight.setPosition(colordetect);  // ~1000µs
 
+        if (currentIndex == intakePositions.length) {
+            rgbLight.setPosition(0.5);
+        } else {
+            rgbLight.setPosition(0.6);
         }
-        /*
-        if (gamepad1.a) {
-            rgbLight.setPosition(0.0);  // ~1000µs
-        } else if (gamepad1.b) {
-            rgbLight.setPosition(0.5);  // ~1500µs (Yellow)
-        } else if (gamepad1.y) {
-            rgbLight.setPosition(1.0);  // ~2000µs
-        }
-    */
+
         telemetry.addData("Shooter State", shooterState);
-        telemetry.addData("Shooter Velocity", shooterR.getVelocity());
+        telemetry.addData("Shooter Velocity R", shooterR.getVelocity());
+        telemetry.addData("Shooter Velocity L", shooterL.getVelocity());
         telemetry.addData("Indexed Balls", currentIndex);
-        telemetry.addData("Color detection", detectColor());
-        telemetry.addData("Servo Position (commanded)", flicker.getPosition());
+        telemetry.addData("Balls To Shoot", ballsToShoot);
+        telemetry.addData("Shot Index", shotIndex);
+        telemetry.addData("Color Detection", detectedColor);
+        telemetry.addData("Red", colorSensor.red());
+        telemetry.addData("Green", colorSensor.green());
+        telemetry.addData("Blue", colorSensor.blue());
+        telemetry.addData("Sensor Ready", sensorReady);
+        telemetry.addData("Spindexer Position", lastIndexPos);
+        telemetry.addData("Flicker Position", flicker.getPosition());
         telemetry.update();
     }
 
@@ -241,6 +257,7 @@ public class TeleopBlueNoAuto extends OpMode {
     public void stop() {
         shooterR.setPower(0);
         shooterL.setPower(0);
+        intake.setPower(0);
         turret.setPower(0);
     }
 
@@ -249,7 +266,7 @@ public class TeleopBlueNoAuto extends OpMode {
         int g = colorSensor.green();
         int b = colorSensor.blue();
 
-        if (g > 1.25* r && g > 1.5 * b && g > 8) return "green";
+        if (g > 1.25 * r && g > 1.5 * b && g > 8) return "green";
 
         int maxRB = Math.max(r, b);
         int minRB = Math.min(r, b);
@@ -257,19 +274,29 @@ public class TeleopBlueNoAuto extends OpMode {
         if (maxRB > 25 && minRB >= 0 * maxRB && g < maxRB) return "purple";
 
         return "unknown";
-
     }
 
     private void setSpindexIntakePosition(int index) {
-        if (index >= intakePositions.length) index = intakePositions.length - 1;
+        if (index < 0) {
+            index = 0;
+        }
+
+        if (index >= intakePositions.length) {
+            index = intakePositions.length - 1;
+        }
+
         applyServoDeadzone(intakePositions[index]);
     }
 
     private void applyServoDeadzone(double pos) {
         if (Math.abs(pos - lastIndexPos) > SERVO_DEADZONE) {
-            leftIndex.setPosition(pos);
-            rightIndex.setPosition(pos);
-            lastIndexPos = pos;
+            setSpindexPositionForce(pos);
         }
+    }
+
+    private void setSpindexPositionForce(double pos) {
+        leftIndex.setPosition(pos);
+        rightIndex.setPosition(pos);
+        lastIndexPos = pos;
     }
 }
