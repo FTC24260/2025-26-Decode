@@ -27,10 +27,10 @@ public class TeleopBlueNoAuto extends OpMode {
     private final double flickerDown = 0.575;
 
     private static final double SERVO_DEADZONE = 0.004;
-    private static final long SENSOR_IGNORE_MS = 800;
+    private static final long SENSOR_IGNORE_MS = 400;
     private static final double SHOOTER_VELOCITY = 1430;
 
-    private static final long SPINDEXER_SETTLE_MS = 25;
+    private static final long SPINDEXER_SETTLE_MS = 300;
     private static final long FLICKER_UP_MS = 200;
     private static final long FLICKER_DOWN_MS = 200;
 
@@ -128,9 +128,9 @@ public class TeleopBlueNoAuto extends OpMode {
                 true
         );
 
-        if (gamepad1.left_trigger > 0.1) {
+        if (gamepad2.left_trigger > 0.1) {
             intake.setPower(-1);
-        } else if (gamepad1.right_trigger > 0.1) {
+        } else if (gamepad2.right_trigger > 0.1) {
             intake.setPower(1);
         } else {
             intake.setPower(0);
@@ -155,7 +155,7 @@ public class TeleopBlueNoAuto extends OpMode {
             }
         }
 
-        boolean a = gamepad1.a;
+        boolean a = gamepad2.a;
 
         if (shooterState == ShooterState.IDLE && a && !lastA && currentIndex > 0) {
             ballsToShoot = Math.min(currentIndex, shootPositions.length);
@@ -215,19 +215,19 @@ public class TeleopBlueNoAuto extends OpMode {
                 break;
         }
 
-        if (gamepad1.dpad_left) {
+        if (gamepad2.dpad_left) {
             turret.setPower(0.25);
-        } else if (gamepad1.dpad_right) {
+        } else if (gamepad2.dpad_right) {
             turret.setPower(-0.25);
         } else {
             turret.setPower(0);
         }
 
-        if (gamepad1.x) {
+        if (gamepad2.x) {
             flicker.setPosition(flickerDown);
         }
 
-        if (gamepad1.y) {
+        if (gamepad2.y) {
             flicker.setPosition(flickerUp);
         }
 
@@ -266,12 +266,12 @@ public class TeleopBlueNoAuto extends OpMode {
         int g = colorSensor.green();
         int b = colorSensor.blue();
 
-        if (g > 1.25 * r && g > 1.5 * b && g > 8) return "green";
+        if (g > 1.2 * r && g > 1.4 * b && g > 8) return "green";
 
         int maxRB = Math.max(r, b);
         int minRB = Math.min(r, b);
 
-        if (maxRB > 25 && minRB >= 0 * maxRB && g < maxRB) return "purple";
+        if (maxRB > 20 && minRB >= 0 * maxRB && g < maxRB) return "purple"; //25
 
         return "unknown";
     }
