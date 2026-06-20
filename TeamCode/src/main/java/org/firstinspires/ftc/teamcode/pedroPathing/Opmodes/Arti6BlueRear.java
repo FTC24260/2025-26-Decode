@@ -30,8 +30,8 @@ public class Arti6BlueRear extends OpMode {
     private final double flickerDown = 0.575;
 
 
-    private static final double SHOOTER_VELOCITY = 1810;
-    private static final int TURRET_TARGET = 190;
+    private static final double SHOOTER_VELOCITY = 1805;
+    private static final int TURRET_TARGET = 193;
     private static final double Kp_TURRET = 0.01;
     private static final double MAX_TURRET_POWER = 0.6;
 
@@ -108,11 +108,14 @@ public class Arti6BlueRear extends OpMode {
         to120 = follower.pathBuilder().addPath(new BezierLine(p115, p120))
                 .setConstantHeadingInterpolation(startPose.getHeading()).build();
 
+        /*
         backToStart = follower.pathBuilder().addPath(new BezierLine(p120, startPose))
                 .setConstantHeadingInterpolation(startPose.getHeading()).build();
 
         final110 = follower.pathBuilder().addPath(new BezierLine(startPose, p110))
                 .setConstantHeadingInterpolation(startPose.getHeading()).build();
+
+         */
     }
 
     @Override

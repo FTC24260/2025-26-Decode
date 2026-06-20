@@ -28,8 +28,8 @@ public class Arti6RedRear extends OpMode {
     private final double flickerUp = 0.333 ;
     private final double flickerDown = 0.575;
 
-    private static final double SHOOTER_VELOCITY = 1900;
-    private static final int TURRET_TARGET = -186;
+    private static final double SHOOTER_VELOCITY = 1865;
+    private static final int TURRET_TARGET = -187;
     private static final double Kp_TURRET = 0.01;
     private static final double MAX_TURRET_POWER = 0.6;
 
